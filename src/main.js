@@ -684,6 +684,29 @@ async function animateResize(fromWidth, toWidth, duration, toHeight) {
   }, stepTime);
 }
 
+// ── Window position ───────────────────────────────────────────────────────────
+
+async function saveWindowPosition() {
+  if (window.__TAURI__) {
+    const position = await window.__TAURI__.window.getCurrentWindow().outerPosition();
+    console.log('full position object:', JSON.stringify(position));
+    localStorage.setItem('window_position', JSON.stringify({ x: position.x, y: position.y }));
+  }
+}
+
+async function restoreWindowPosition() {
+  if (window.__TAURI__) {
+    const saved = localStorage.getItem('window_position');
+    if (saved) {
+      const { x, y } = JSON.parse(saved);
+      await window.__TAURI__.window.getCurrentWindow().setPosition(
+        new window.__TAURI__.window.PhysicalPosition(x, y)
+      );
+    }
+    await window.__TAURI__.window.getCurrentWindow().show();
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -702,10 +725,14 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('back-btn').onclick = () => switchToMonth();
 
   document.getElementById('drag-handle').addEventListener('mousedown', (e) => {
-    if (window.__TAURI__) window.__TAURI__.window.getCurrentWindow().startDragging();
+    if (window.__TAURI__) {
+      window.__TAURI__.window.getCurrentWindow().startDragging();
+      setTimeout(() => saveWindowPosition(), 500);
+    }
   });
 
   updateClock();
   setInterval(updateClock, 1000);
   initStorage().then(() => renderCalendar());
+  setTimeout(() => restoreWindowPosition(), 50);
 });
