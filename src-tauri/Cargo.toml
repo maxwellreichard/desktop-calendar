@@ -1,0 +1,21 @@
+[package]
+name = "desktop-calendar"
+version = "0.1.0"
+description = "A desktop calendar widget"
+authors = []
+license = ""
+repository = ""
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri-plugin-fs = "2"
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+window-vibrancy = "0.5"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]

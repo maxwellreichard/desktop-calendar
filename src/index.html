@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Desktop Calendar</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="widget" id="widget">
+      <div class="drag-handle" id="drag-handle">
+        <div class="drag-handle-dots"></div>
+      </div>
+      <div class="header">
+        <div>
+          <div class="clock" id="clock">00:00</div>
+          <div class="clock-date" id="clock-date"></div>
+        </div>
+        <div class="header-right">
+          <div class="month-label" id="month-label"></div>
+          <div id="nav-btns" class="nav">
+            <button class="nav-btn" id="prev">&#8249;</button>
+            <button class="nav-btn" id="next">&#8250;</button>
+          </div>
+          <button class="back-btn" id="back-btn">&#8592; Back</button>
+        </div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot personal"></div>Personal</div>
+        <div class="legend-item"><div class="legend-dot work"></div>Work</div>
+        <div class="legend-item"><div class="legend-dot reminder"></div>Reminder</div>
+      </div>
+      <div class="view-container">
+        <div class="view active" id="month-view">
+          <div class="cal-grid" id="cal-grid"></div>
+        </div>
+        <div class="view slide-right" id="week-view"></div>
+        <div class="view slide-right" id="day-view"></div>
+      </div>
+    </div>
+    <div id="modal-container"></div>
+    <script src="/main.js"></script>
+  </body>
+</html>

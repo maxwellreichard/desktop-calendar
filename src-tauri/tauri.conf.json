@@ -1,0 +1,39 @@
+{
+  "productName": "desktop-calendar",
+  "version": "0.1.0",
+  "identifier": "com.reicharm.desktop-calendar",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "title": "Desktop Calendar",
+        "width": 460,
+        "height": 580,
+        "minWidth": 460,
+        "minHeight": 580,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "icon": [
+    "icons/32x32.png",
+    "icons/128x128.png",
+    "icons/128x128@2x.png",
+    "icons/icon.ico",
+    "icons/icon.icns"
+    ]
+  }
+}
