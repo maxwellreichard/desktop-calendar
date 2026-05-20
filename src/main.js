@@ -736,3 +736,26 @@ window.addEventListener('DOMContentLoaded', () => {
   initStorage().then(() => renderCalendar());
   setTimeout(() => restoreWindowPosition(), 50);
 });
+
+// ── Autostart ─────────────────────────────────────────────────────────────────
+
+async function enableAutostart() {
+  if (window.__TAURI__) {
+    await window.__TAURI__.core.invoke('plugin:autostart|enable');
+    console.log('Autostart enabled');
+  }
+}
+
+async function disableAutostart() {
+  if (window.__TAURI__) {
+    await window.__TAURI__.core.invoke('plugin:autostart|disable');
+    console.log('Autostart disabled');
+  }
+}
+
+async function isAutostartEnabled() {
+  if (window.__TAURI__) {
+    return await window.__TAURI__.core.invoke('plugin:autostart|is_enabled');
+  }
+  return false;
+}
