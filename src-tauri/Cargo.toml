@@ -1,6 +1,6 @@
 [package]
 name = "desktop-calendar"
-version = "0.1.0"
+version = "0.1.1"
 description = "A desktop calendar widget"
 authors = []
 license = ""
@@ -21,3 +21,4 @@ tauri-plugin-autostart = "2"
 [features]
 default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]
+
