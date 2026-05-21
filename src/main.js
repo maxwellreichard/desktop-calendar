@@ -451,8 +451,11 @@ function toggleEventExpand(pill, ev, key) {
   delBtn.textContent = 'Delete';
   delBtn.onmousedown = e => e.stopPropagation();
   delBtn.onclick = async () => {
+    if (googleConnected && ev.googleId) {
+      await deleteGoogleEvent(ev.googleId);
+    }
     events = events.filter(e => e.id !== ev.id);
-    saveEvents();
+    await saveEvents();
     renderDayView();
   };
 
@@ -470,8 +473,13 @@ function toggleEventExpand(pill, ev, key) {
         type: typeSelect.value,
         notes: notesInput.value.trim()
       };
+      await saveEvents();
+
+      // Update Google Calendar if connected and event has a googleId
+      if (googleConnected && events[idx].googleId) {
+        await updateGoogleEvent(events[idx].googleId, events[idx]);
+      }
     }
-    saveEvents();
     renderDayView();
   };
 
@@ -540,15 +548,27 @@ function openInlineEventForm(key, container) {
   saveBtn.onclick = async () => {
     const title = titleInput.value.trim();
     if (!title) return;
-    events.push({
+    const newEvent = {
       id: Date.now().toString(),
       title,
       date: key,
       time: timeInput.value,
       type: typeSelect.value,
       notes: notesInput.value.trim()
-    });
-    saveEvents();
+    };
+    events.push(newEvent);
+    await saveEvents();
+
+    // Push to Google Calendar if connected
+    if (googleConnected) {
+      const googleResult = await createGoogleEvent(newEvent);
+      if (googleResult) {
+        // Store the Google ID on the local event for future edits/deletes
+        newEvent.googleId = googleResult.id;
+        await saveEvents();
+      }
+    }
+
     renderDayView();
   };
 
@@ -732,20 +752,15 @@ async function restoreWindowPosition() {
   if (window.__TAURI__) {
     const saved = localStorage.getItem('window_position');
     if (saved) {
-      try {
-        const { x, y } = JSON.parse(saved);
-        if (typeof x === 'number' && typeof y === 'number') {
-          await window.__TAURI__.window.getCurrentWindow().setPosition(
-            new window.__TAURI__.window.PhysicalPosition(x, y)
-          );
-        }
-      } catch (e) {
-        console.error('Failed to restore position:', e);
-      }
+      const { x, y } = JSON.parse(saved);
+      window.__TAURI__.window.getCurrentWindow().setPosition(
+        new window.__TAURI__.window.PhysicalPosition(x, y)
+      );
     }
-    await window.__TAURI__.window.getCurrentWindow().show();
+    window.__TAURI__.window.getCurrentWindow().show();
   }
 }
+
 // ── Google Calendar ───────────────────────────────────────────────────────────
 
 function isGoogleConnected() {
