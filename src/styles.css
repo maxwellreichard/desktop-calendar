@@ -46,6 +46,12 @@
   --pill-personal-time: rgba(60, 42, 158, 0.6);
   --pill-work-time: rgba(8, 80, 65, 0.6);
   --pill-reminder-time: rgba(122, 74, 0, 0.6);
+
+  /* Google pilled */
+  --pill-google-bg: rgba(66, 133, 244, 0.15);
+  --pill-google-color: #1a56b0;
+  --pill-google-border: rgba(66, 133, 244, 0.25);
+  --pill-google-time: rgba(26, 86, 176, 0.6);
 }
 
 /* Dark theme */
@@ -213,7 +219,6 @@ body {
   height: 100vh;
   background: var(--bg-widget);
   border: 1px solid var(--border-widget);
-  border-radius: 10px;
   padding: 20px 20px 0 20px;
   color: var(--text-primary);
   overflow: hidden;
@@ -328,6 +333,7 @@ body {
 .legend-dot.personal { background: rgba(100, 70, 220, 0.8); }
 .legend-dot.work { background: rgba(0, 140, 90, 0.8); }
 .legend-dot.reminder { background: rgba(180, 110, 0, 0.8); }
+.legend-dot.google { background: rgba(66, 133, 244, 0.8); }
 
 /* View container */
 .view-container {
@@ -384,6 +390,8 @@ body {
   border: 1px solid var(--border-cell);
   padding: 4px;
   cursor: pointer;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .day-cell:hover {
@@ -426,29 +434,42 @@ body {
   white-space: nowrap;
   text-overflow: ellipsis;
   cursor: pointer;
+  display: block;
+  max-width: 100%;
 }
 
 .event-pill.personal { background: var(--pill-personal-bg); color: var(--pill-personal-color); }
 .event-pill.work { background: var(--pill-work-bg); color: var(--pill-work-color); }
 .event-pill.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); }
-
-.day-event-pill.personal { background: var(--pill-personal-bg); border: 1px solid var(--pill-personal-border); }
-.day-event-pill.work { background: var(--pill-work-bg); border: 1px solid var(--pill-work-border); }
-.day-event-pill.reminder { background: var(--pill-reminder-bg); border: 1px solid var(--pill-reminder-border); }
-
-.day-event-pill.personal .day-event-title { color: var(--pill-personal-color); }
-.day-event-pill.work .day-event-title { color: var(--pill-work-color); }
-.day-event-pill.reminder .day-event-title { color: var(--pill-reminder-color); }
-
-.day-event-pill.personal .day-event-time { color: var(--pill-personal-time); }
-.day-event-pill.work .day-event-time { color: var(--pill-work-time); }
-.day-event-pill.reminder .day-event-time { color: var(--pill-reminder-time); }
+.event-pill.google { background: var(--pill-google-bg); color: var(--pill-google-color); }
 
 .more-pill {
   font-size: 9px;
   color: var(--text-tertiary);
   padding: 1px 3px;
 }
+
+.day-event-pill {
+  border-radius: 6px;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.day-event-pill.personal { background: var(--pill-personal-bg); border: 1px solid var(--pill-personal-border); }
+.day-event-pill.work { background: var(--pill-work-bg); border: 1px solid var(--pill-work-border); }
+.day-event-pill.reminder { background: var(--pill-reminder-bg); border: 1px solid var(--pill-reminder-border); }
+.day-event-pill.google { background: var(--pill-google-bg); border: 1px solid var(--pill-google-border); }
+
+.day-event-pill.personal .day-event-title { color: var(--pill-personal-color); }
+.day-event-pill.work .day-event-title { color: var(--pill-work-color); }
+.day-event-pill.reminder .day-event-title { color: var(--pill-reminder-color); }
+.day-event-pill.google .day-event-title { color: var(--pill-google-color); }
+
+.day-event-pill.personal .day-event-time { color: var(--pill-personal-time); }
+.day-event-pill.work .day-event-time { color: var(--pill-work-time); }
+.day-event-pill.reminder .day-event-time { color: var(--pill-reminder-time); }
+.day-event-pill.google .day-event-time { color: var(--pill-google-time); }
 
 /* Week view */
 .week-view-grid {

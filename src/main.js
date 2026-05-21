@@ -1,3 +1,7 @@
+// Google Calendar
+let googleEvents = [];
+let googleConnected = false;
+
 let events = [];
 let notes = {};
 let todos = {};
@@ -24,6 +28,21 @@ async function initStorage() {
   }
 }
 
+async function initGoogleCalendar() {
+  googleConnected = isGoogleConnected();
+  if (googleConnected) {
+    await syncGoogleEvents();
+  }
+}
+
+async function syncGoogleEvents() {
+  try {
+    googleEvents = await fetchGoogleEvents(viewYear, viewMonth);
+    renderCalendar();
+  } catch (e) {
+    console.error('Google sync error:', e);
+  }
+}
 async function saveEvents() {
   localStorage.setItem('calendar_events', JSON.stringify(events));
 }
@@ -48,7 +67,9 @@ function updateClock() {
 
 function getEventsForDate(y, m, d) {
   const key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-  return events.filter(e => e.date === key);
+  const local = events.filter(e => e.date === key);
+  const google = googleEvents.filter(e => e.date === key);
+  return [...local, ...google];
 }
 
 function dateKey(y, m, d) {
@@ -431,7 +452,7 @@ function toggleEventExpand(pill, ev, key) {
   delBtn.onmousedown = e => e.stopPropagation();
   delBtn.onclick = async () => {
     events = events.filter(e => e.id !== ev.id);
-    await saveEvents();
+    saveEvents();
     renderDayView();
   };
 
@@ -450,7 +471,7 @@ function toggleEventExpand(pill, ev, key) {
         notes: notesInput.value.trim()
       };
     }
-    await saveEvents();
+    saveEvents();
     renderDayView();
   };
 
@@ -527,7 +548,7 @@ function openInlineEventForm(key, container) {
       type: typeSelect.value,
       notes: notesInput.value.trim()
     });
-    await saveEvents();
+    saveEvents();
     renderDayView();
   };
 
@@ -658,9 +679,13 @@ function switchToMonth() {
 
 async function animateResize(fromWidth, toWidth, duration, toHeight) {
   let currentHeight = 580;
-  if (window.__TAURI__) {
-    const size = await window.__TAURI__.window.getCurrentWindow().innerSize();
-    currentHeight = size.height;
+  try {
+    if (window.__TAURI__) {
+      const size = await window.__TAURI__.window.getCurrentWindow().innerSize();
+      if (size && size.height) currentHeight = size.height;
+    }
+  } catch (e) {
+    currentHeight = 580;
   }
   const targetHeight = toHeight || currentHeight;
   const steps = 5;
@@ -676,9 +701,13 @@ async function animateResize(fromWidth, toWidth, duration, toHeight) {
     currentH += stepSizeH;
     step++;
     if (window.__TAURI__) {
-      window.__TAURI__.window.getCurrentWindow().setSize(
-        new window.__TAURI__.window.LogicalSize(Math.round(currentW), Math.round(currentH))
-      );
+      const w = Math.round(currentW);
+      const h = Math.round(currentH);
+      if (w > 0 && h > 0) {
+        window.__TAURI__.window.getCurrentWindow().setSize(
+          new window.__TAURI__.window.LogicalSize(w, h)
+        );
+      }
     }
     if (step >= steps) clearInterval(interval);
   }, stepTime);
@@ -688,9 +717,14 @@ async function animateResize(fromWidth, toWidth, duration, toHeight) {
 
 async function saveWindowPosition() {
   if (window.__TAURI__) {
-    const position = await window.__TAURI__.window.getCurrentWindow().outerPosition();
-    console.log('full position object:', JSON.stringify(position));
-    localStorage.setItem('window_position', JSON.stringify({ x: position.x, y: position.y }));
+    try {
+      const position = await window.__TAURI__.window.getCurrentWindow().outerPosition();
+      if (position && typeof position.x === 'number' && typeof position.y === 'number') {
+        localStorage.setItem('window_position', JSON.stringify({ x: position.x, y: position.y }));
+      }
+    } catch (e) {
+      console.error('Failed to save position:', e);
+    }
   }
 }
 
@@ -698,12 +732,239 @@ async function restoreWindowPosition() {
   if (window.__TAURI__) {
     const saved = localStorage.getItem('window_position');
     if (saved) {
-      const { x, y } = JSON.parse(saved);
-      await window.__TAURI__.window.getCurrentWindow().setPosition(
-        new window.__TAURI__.window.PhysicalPosition(x, y)
-      );
+      try {
+        const { x, y } = JSON.parse(saved);
+        if (typeof x === 'number' && typeof y === 'number') {
+          await window.__TAURI__.window.getCurrentWindow().setPosition(
+            new window.__TAURI__.window.PhysicalPosition(x, y)
+          );
+        }
+      } catch (e) {
+        console.error('Failed to restore position:', e);
+      }
     }
     await window.__TAURI__.window.getCurrentWindow().show();
+  }
+}
+// ── Google Calendar ───────────────────────────────────────────────────────────
+
+function isGoogleConnected() {
+  const tokens = getGoogleTokens();
+  return !!tokens?.refresh_token;
+}
+
+function getGoogleTokens() {
+  const raw = localStorage.getItem('google_tokens');
+  return raw ? JSON.parse(raw) : null;
+}
+
+function saveGoogleTokens(tokens) {
+  if (tokens.expires_in) {
+    tokens.expires_at = Date.now() + tokens.expires_in * 1000;
+  }
+  localStorage.setItem('google_tokens', JSON.stringify(tokens));
+}
+
+function disconnectGoogle() {
+  localStorage.removeItem('google_tokens');
+  localStorage.removeItem('google_code_verifier');
+}
+
+function generateCodeVerifier() {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return btoa(String.fromCharCode(...array))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function generateCodeChallenge(verifier) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+async function startGoogleAuth() {
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+  localStorage.setItem('google_code_verifier', codeVerifier);
+
+  const params = new URLSearchParams({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: GOOGLE_REDIRECT_URI,
+    response_type: 'code',
+    scope: GOOGLE_SCOPES,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
+    access_type: 'offline',
+    prompt: 'consent'
+  });
+
+  const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+
+  if (window.__TAURI__) {
+    await window.__TAURI__.shell.open(authUrl);
+  } else {
+    window.open(authUrl, '_blank');
+  }
+
+  return listenForCallback();
+}
+
+function listenForCallback() {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Auth timeout')), 120000);
+    const checkInterval = setInterval(async () => {
+      try {
+        const response = await fetch('http://localhost:8642/oauth/token');
+        if (response.ok) {
+          const data = await response.json();
+          clearInterval(checkInterval);
+          clearTimeout(timeout);
+          resolve(data.code);
+        }
+      } catch (e) {
+        // Server not ready yet
+      }
+    }, 1000);
+  });
+}
+
+async function exchangeCodeForTokens(code) {
+  const codeVerifier = localStorage.getItem('google_code_verifier');
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      code,
+      code_verifier: codeVerifier,
+      redirect_uri: GOOGLE_REDIRECT_URI,
+      grant_type: 'authorization_code'
+    })
+  });
+  const tokens = await response.json();
+  saveGoogleTokens(tokens);
+  return tokens;
+}
+
+async function refreshAccessToken() {
+  const tokens = getGoogleTokens();
+  if (!tokens?.refresh_token) return null;
+  const response = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: GOOGLE_CLIENT_ID,
+      client_secret: GOOGLE_CLIENT_SECRET,
+      refresh_token: tokens.refresh_token,
+      grant_type: 'refresh_token'
+    })
+  });
+  const newTokens = await response.json();
+  saveGoogleTokens({ ...tokens, ...newTokens });
+  return newTokens.access_token;
+}
+
+async function getValidAccessToken() {
+  const tokens = getGoogleTokens();
+  if (!tokens) return null;
+  const expiresAt = tokens.expires_at || 0;
+  if (Date.now() < expiresAt - 60000) return tokens.access_token;
+  return await refreshAccessToken();
+}
+
+async function fetchGoogleEvents(year, month) {
+  const token = await getValidAccessToken();
+  if (!token) return [];
+  const start = new Date(year, month, 1).toISOString();
+  const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+  const response = await fetch(
+    `${CALENDAR_BASE}/calendars/primary/events?timeMin=${start}&timeMax=${end}&singleEvents=true&orderBy=startTime`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!response.ok) return [];
+  const data = await response.json();
+  return (data.items || []).map(item => ({
+    id: item.id,
+    title: item.summary || '(No title)',
+    date: (item.start.date || item.start.dateTime).slice(0, 10),
+    time: item.start.dateTime ? item.start.dateTime.slice(11, 16) : '',
+    type: 'google',
+    source: 'google',
+    notes: item.description || '',
+    googleId: item.id
+  }));
+}
+
+async function createGoogleEvent(event) {
+  const token = await getValidAccessToken();
+  if (!token) return null;
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const body = {
+    summary: event.title,
+    description: event.notes || '',
+    start: event.time
+      ? { dateTime: `${event.date}T${event.time}:00`, timeZone: tz }
+      : { date: event.date },
+    end: event.time
+      ? { dateTime: `${event.date}T${event.time}:00`, timeZone: tz }
+      : { date: event.date }
+  };
+  const response = await fetch(`${CALENDAR_BASE}/calendars/primary/events`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return response.ok ? await response.json() : null;
+}
+
+async function updateGoogleEvent(googleId, event) {
+  const token = await getValidAccessToken();
+  if (!token) return null;
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const body = {
+    summary: event.title,
+    description: event.notes || '',
+    start: event.time
+      ? { dateTime: `${event.date}T${event.time}:00`, timeZone: tz }
+      : { date: event.date },
+    end: event.time
+      ? { dateTime: `${event.date}T${event.time}:00`, timeZone: tz }
+      : { date: event.date }
+  };
+  const response = await fetch(`${CALENDAR_BASE}/calendars/primary/events/${googleId}`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  return response.ok ? await response.json() : null;
+}
+
+async function deleteGoogleEvent(googleId) {
+  const token = await getValidAccessToken();
+  if (!token) return false;
+  const response = await fetch(`${CALENDAR_BASE}/calendars/primary/events/${googleId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  return response.ok || response.status === 204;
+}
+
+async function initGoogleCalendar() {
+  googleConnected = isGoogleConnected();
+  if (googleConnected) await syncGoogleEvents();
+}
+
+async function syncGoogleEvents() {
+  try {
+    googleEvents = await fetchGoogleEvents(viewYear, viewMonth);
+    console.log('Google events fetched:', googleEvents);
+    renderCalendar();
+  } catch (e) {
+    console.error('Google sync error:', e);
   }
 }
 
@@ -741,6 +1002,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setInterval(updateClock, 1000);
   initStorage().then(() => renderCalendar());
   loadTheme();
+  initGoogleCalendar();
   setTimeout(() => restoreWindowPosition(), 100);
 });
 
@@ -748,21 +1010,21 @@ window.addEventListener('DOMContentLoaded', () => {
 
 async function enableAutostart() {
   if (window.__TAURI__) {
-    await window.__TAURI__.core.invoke('plugin:autostart|enable');
+    window.__TAURI__.core.invoke('plugin:autostart|enable');
     console.log('Autostart enabled');
   }
 }
 
 async function disableAutostart() {
   if (window.__TAURI__) {
-    await window.__TAURI__.core.invoke('plugin:autostart|disable');
+    window.__TAURI__.core.invoke('plugin:autostart|disable');
     console.log('Autostart disabled');
   }
 }
 
 async function isAutostartEnabled() {
   if (window.__TAURI__) {
-    return await window.__TAURI__.core.invoke('plugin:autostart|is_enabled');
+    return window.__TAURI__.core.invoke('plugin:autostart|is_enabled');
   }
   return false;
 }
@@ -771,14 +1033,14 @@ async function isAutostartEnabled() {
 
 async function setAlwaysOnTop(enabled) {
   if (window.__TAURI__) {
-    await window.__TAURI__.window.getCurrentWindow().setAlwaysOnTop(enabled);
+    window.__TAURI__.window.getCurrentWindow().setAlwaysOnTop(enabled);
     localStorage.setItem('always_on_top', enabled ? 'true' : 'false');
   }
 }
 
 async function isAlwaysOnTop() {
   if (window.__TAURI__) {
-    return await window.__TAURI__.window.getCurrentWindow().isAlwaysOnTop();
+    return window.__TAURI__.window.getCurrentWindow().isAlwaysOnTop();
   }
   return false;
 }
@@ -808,7 +1070,7 @@ async function showContextMenu(x, y) {
   // Remove any existing menu
   closeContextMenu();
 
-  const autostartOn = await isAutostartEnabled();
+  const autostartOn = isAutostartEnabled();
   const currentTheme = localStorage.getItem('calendar_theme') || 'default';
 
   const menu = document.createElement('div');
@@ -865,16 +1127,16 @@ async function showContextMenu(x, y) {
   `;
   autostartItem.onclick = async () => {
     if (autostartOn) {
-      await disableAutostart();
+      disableAutostart();
     } else {
-      await enableAutostart();
+      enableAutostart();
     }
     closeContextMenu();
   };
   menu.appendChild(autostartItem);
 
   // Always on top toggle
-  const alwaysOnTopOn = await isAlwaysOnTop();
+  const alwaysOnTopOn = isAlwaysOnTop();
   const alwaysOnTopItem = document.createElement('div');
   alwaysOnTopItem.className = 'context-menu-item';
   alwaysOnTopItem.innerHTML = `
@@ -882,13 +1144,57 @@ async function showContextMenu(x, y) {
     ${alwaysOnTopOn ? '<span class="check">✓</span>' : ''}
   `;
   alwaysOnTopItem.onclick = async () => {
-    await setAlwaysOnTop(!alwaysOnTopOn);
+    setAlwaysOnTop(!alwaysOnTopOn);
     closeContextMenu();
   };
   menu.appendChild(alwaysOnTopItem);
 
   // Divider
   menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
+
+  // Google Calendar section
+
+  const googleLabel = document.createElement('div');
+  googleLabel.className = 'context-menu-label';
+  googleLabel.textContent = 'Google Calendar';
+  menu.appendChild(googleLabel);
+
+  const googleItem = document.createElement('div');
+  googleItem.className = 'context-menu-item';
+  googleItem.innerHTML = `
+    <span>${googleConnected ? 'Disconnect Google' : 'Connect Google Calendar'}</span>
+    ${googleConnected ? '<span class="check">✓</span>' : ''}
+  `;
+  googleItem.onclick = async () => {
+    if (googleConnected) {
+      disconnectGoogle();
+      googleEvents = [];
+      googleConnected = false;
+      renderCalendar();
+    } else {
+      try {
+        const code = await startGoogleAuth();
+        await exchangeCodeForTokens(code);
+        googleConnected = true;
+        await syncGoogleEvents();
+      } catch (e) {
+        console.error('Google auth error:', e);
+      }
+    }
+    closeContextMenu();
+  };
+  menu.appendChild(googleItem);
+
+  if (googleConnected) {
+    const syncItem = document.createElement('div');
+    syncItem.className = 'context-menu-item';
+    syncItem.innerHTML = '<span>Sync now</span>';
+    syncItem.onclick = async () => {
+      await syncGoogleEvents();
+      closeContextMenu();
+    };
+    menu.appendChild(syncItem);
+  }
 
   // About
   const aboutItem = document.createElement('div');
@@ -903,7 +1209,7 @@ async function showContextMenu(x, y) {
   closeItem.textContent = 'Close';
   closeItem.onclick = async () => {
     if (window.__TAURI__) {
-      await window.__TAURI__.window.getCurrentWindow().close();
+      window.__TAURI__.window.getCurrentWindow().close();
     }
   };
   menu.appendChild(closeItem);
