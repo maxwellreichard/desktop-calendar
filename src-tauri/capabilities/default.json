@@ -12,6 +12,9 @@
     "core:window:allow-set-position",
     "core:window:allow-outer-position",
     "core:window:allow-show",
+    "core:window:allow-close",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-is-always-on-top",
     "autostart:allow-enable",
     "autostart:allow-disable",
     "autostart:allow-is-enabled"

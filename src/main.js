@@ -725,16 +725,23 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('back-btn').onclick = () => switchToMonth();
 
   document.getElementById('drag-handle').addEventListener('mousedown', (e) => {
+    if (e.button === 2) return;
     if (window.__TAURI__) {
       window.__TAURI__.window.getCurrentWindow().startDragging();
       setTimeout(() => saveWindowPosition(), 500);
     }
   });
 
+  document.getElementById('drag-handle').addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    showContextMenu(e.clientX, e.clientY);
+  });
+
   updateClock();
   setInterval(updateClock, 1000);
   initStorage().then(() => renderCalendar());
-  setTimeout(() => restoreWindowPosition(), 50);
+  loadTheme();
+  setTimeout(() => restoreWindowPosition(), 100);
 });
 
 // ── Autostart ─────────────────────────────────────────────────────────────────
@@ -758,4 +765,158 @@ async function isAutostartEnabled() {
     return await window.__TAURI__.core.invoke('plugin:autostart|is_enabled');
   }
   return false;
+}
+
+// ── Always on top ───────────────────────────────────────────────────────────────── 
+
+async function setAlwaysOnTop(enabled) {
+  if (window.__TAURI__) {
+    await window.__TAURI__.window.getCurrentWindow().setAlwaysOnTop(enabled);
+    localStorage.setItem('always_on_top', enabled ? 'true' : 'false');
+  }
+}
+
+async function isAlwaysOnTop() {
+  if (window.__TAURI__) {
+    return await window.__TAURI__.window.getCurrentWindow().isAlwaysOnTop();
+  }
+  return false;
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+
+const themes = ['default', 'dark', 'warm', 'cool'];
+
+function applyTheme(theme) {
+  const widget = document.getElementById('widget');
+  if (theme === 'default') {
+    widget.removeAttribute('data-theme');
+  } else {
+    widget.setAttribute('data-theme', theme);
+  }
+  localStorage.setItem('calendar_theme', theme);
+}
+
+function loadTheme() {
+  const saved = localStorage.getItem('calendar_theme') || 'default';
+  applyTheme(saved);
+}
+
+// ── Context menu ──────────────────────────────────────────────────────────────
+
+async function showContextMenu(x, y) {
+  // Remove any existing menu
+  closeContextMenu();
+
+  const autostartOn = await isAutostartEnabled();
+  const currentTheme = localStorage.getItem('calendar_theme') || 'default';
+
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.id = 'context-menu';
+  menu.style.left = x + 'px';
+  menu.style.top = y + 'px';
+
+  // Theme section
+  const themeLabel = document.createElement('div');
+  themeLabel.className = 'context-menu-label';
+  themeLabel.textContent = 'Theme';
+  menu.appendChild(themeLabel);
+
+  const themeOptions = [
+    { id: 'default', label: 'Default', color: '#FAF7F2', border: '#ccc' },
+    { id: 'dark', label: 'Dark', color: '#1e1e2e', border: '#444' },
+    { id: 'warm', label: 'Warm', color: '#FDF4E7', border: '#d4a96a' },
+    { id: 'cool', label: 'Cool', color: '#F0F4FA', border: '#6a9ad4' },
+  ];
+
+  themeOptions.forEach(t => {
+    const item = document.createElement('div');
+    item.className = 'context-menu-item';
+    item.innerHTML = `
+      <span>
+        <span class="theme-dot" style="background:${t.color}; border: 1px solid ${t.border}"></span>
+        ${t.label}
+      </span>
+      ${currentTheme === t.id ? '<span class="check">✓</span>' : ''}
+    `;
+    item.onclick = () => {
+      applyTheme(t.id);
+      closeContextMenu();
+    };
+    menu.appendChild(item);
+  });
+
+  // Divider
+  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
+
+  // Settings section
+  const settingsLabel = document.createElement('div');
+  settingsLabel.className = 'context-menu-label';
+  settingsLabel.textContent = 'Settings';
+  menu.appendChild(settingsLabel);
+
+  // Autostart toggle
+  const autostartItem = document.createElement('div');
+  autostartItem.className = 'context-menu-item';
+  autostartItem.innerHTML = `
+    <span>Launch on startup</span>
+    ${autostartOn ? '<span class="check">✓</span>' : ''}
+  `;
+  autostartItem.onclick = async () => {
+    if (autostartOn) {
+      await disableAutostart();
+    } else {
+      await enableAutostart();
+    }
+    closeContextMenu();
+  };
+  menu.appendChild(autostartItem);
+
+  // Always on top toggle
+  const alwaysOnTopOn = await isAlwaysOnTop();
+  const alwaysOnTopItem = document.createElement('div');
+  alwaysOnTopItem.className = 'context-menu-item';
+  alwaysOnTopItem.innerHTML = `
+    <span>Always on top</span>
+    ${alwaysOnTopOn ? '<span class="check">✓</span>' : ''}
+  `;
+  alwaysOnTopItem.onclick = async () => {
+    await setAlwaysOnTop(!alwaysOnTopOn);
+    closeContextMenu();
+  };
+  menu.appendChild(alwaysOnTopItem);
+
+  // Divider
+  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
+
+  // About
+  const aboutItem = document.createElement('div');
+  aboutItem.className = 'context-menu-item';
+  aboutItem.innerHTML = '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.1.0</span>';
+  aboutItem.onclick = () => closeContextMenu();
+  menu.appendChild(aboutItem);
+
+  // Close app
+  const closeItem = document.createElement('div');
+  closeItem.className = 'context-menu-item danger';
+  closeItem.textContent = 'Close';
+  closeItem.onclick = async () => {
+    if (window.__TAURI__) {
+      await window.__TAURI__.window.getCurrentWindow().close();
+    }
+  };
+  menu.appendChild(closeItem);
+
+  document.body.appendChild(menu);
+
+  // Close on click outside
+  setTimeout(() => {
+    document.addEventListener('click', closeContextMenu, { once: true });
+  }, 50);
+}
+
+function closeContextMenu() {
+  const existing = document.getElementById('context-menu');
+  if (existing) existing.remove();
 }

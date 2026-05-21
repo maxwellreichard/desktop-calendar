@@ -9,19 +9,7 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec![])))
         .setup(|app| {
             let window = app.get_webview_window("main").unwrap();
-            #[cfg(target_os = "windows")]
-            apply_acrylic(&window, Some((0, 0, 0, 10)))
-                .expect("Failed to apply acrylic effect");
-
-            let window_clone = window.clone();
-            window.on_window_event(move |event| {
-                if let tauri::WindowEvent::Focused(_) = event {
-                    #[cfg(target_os = "windows")]
-                    apply_acrylic(&window_clone, Some((0, 0, 0, 10)))
-                        .expect("Failed to reapply acrylic");
-                }
-            });
-
+            let _ = window;
             Ok(())
         })
         .run(tauri::generate_context!())

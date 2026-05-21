@@ -1,3 +1,200 @@
+:root {
+  /* Base */
+  --bg-widget: #FAF7F2;
+  --bg-cell: rgba(255, 255, 255, 0.7);
+  --bg-cell-hover: rgba(255, 255, 255, 0.95);
+  --bg-cell-today: rgba(80, 60, 200, 0.15);
+  --bg-todo: rgba(255, 255, 255, 0.5);
+  --bg-notes: rgba(255, 255, 255, 0.5);
+  --bg-week-notes: rgba(255, 255, 255, 0.5);
+
+  /* Border */
+  --border-widget: rgba(0, 0, 0, 0.08);
+  --border-cell: rgba(0, 0, 0, 0.08);
+  --border-today: rgba(80, 60, 200, 0.4);
+
+  /* Text */
+  --text-primary: #1a1a1a;
+  --text-secondary: rgba(0, 0, 0, 0.5);
+  --text-tertiary: rgba(0, 0, 0, 0.4);
+  --text-cell: rgba(0, 0, 0, 0.7);
+
+  /* Accent */
+  --accent: rgba(80, 60, 200, 0.7);
+  --accent-light: rgba(80, 60, 200, 0.15);
+  --accent-border: rgba(80, 60, 200, 0.4);
+
+  /* Nav buttons */
+  --bg-nav: rgba(0, 0, 0, 0.08);
+  --border-nav: rgba(0, 0, 0, 0.15);
+  --text-nav: rgba(0, 0, 0, 0.6);
+
+  /* Drag handle */
+  --bg-drag: rgba(0, 0, 0, 0.12);
+  --text-drag: rgba(0, 0, 0, 0.3);
+
+  /* Pill pockets */
+  --pill-personal-bg: rgba(100, 70, 220, 0.2);
+  --pill-personal-color: #3C2A9E;
+  --pill-work-bg: rgba(0, 140, 90, 0.2);
+  --pill-work-color: #085041;
+  --pill-reminder-bg: rgba(180, 110, 0, 0.2);
+  --pill-reminder-color: #7A4A00;
+  --pill-personal-border: rgba(100, 70, 220, 0.2);
+  --pill-work-border: rgba(0, 140, 90, 0.2);
+  --pill-reminder-border: rgba(180, 110, 0, 0.2);
+  --pill-personal-time: rgba(60, 42, 158, 0.6);
+  --pill-work-time: rgba(8, 80, 65, 0.6);
+  --pill-reminder-time: rgba(122, 74, 0, 0.6);
+}
+
+/* Dark theme */
+[data-theme="dark"] {
+  /* Base */
+  --bg-widget: #1e1e2e;
+  --bg-cell: rgba(255, 255, 255, 0.05);
+  --bg-cell-hover: rgba(255, 255, 255, 0.1);
+  --bg-cell-today: rgba(120, 100, 255, 0.25);
+  --bg-todo: rgba(255, 255, 255, 0.07);
+  --bg-notes: rgba(255, 255, 255, 0.07);
+  --bg-week-notes: rgba(255, 255, 255, 0.07);
+
+  /* Border */
+  --border-widget: rgba(255, 255, 255, 0.08);
+  --border-cell: rgba(255, 255, 255, 0.08);
+  --border-today: rgba(140, 120, 255, 0.5);
+
+  /* Text */
+  --text-primary: #e8e8f0;
+  --text-secondary: rgba(255, 255, 255, 0.5);
+  --text-tertiary: rgba(255, 255, 255, 0.3);
+  --text-cell: rgba(255, 255, 255, 0.7);
+
+  /* Accent */
+  --accent: rgba(140, 120, 255, 0.8);
+  --accent-light: rgba(140, 120, 255, 0.2);
+  --accent-border: rgba(140, 120, 255, 0.5);
+
+  /* Nav buttons */
+  --bg-nav: rgba(255, 255, 255, 0.08);
+  --border-nav: rgba(255, 255, 255, 0.15);
+  --text-nav: rgba(255, 255, 255, 0.6);
+  --bg-drag: rgba(255, 255, 255, 0.1);
+  --text-drag: rgba(255, 255, 255, 0.3);
+  
+  /* Pill pockets */
+  --pill-personal-bg: rgba(140, 100, 255, 0.25);
+  --pill-personal-color: #C4B0FF;
+  --pill-work-bg: rgba(0, 180, 120, 0.25);
+  --pill-work-color: #80FFCC;
+  --pill-reminder-bg: rgba(220, 160, 0, 0.25);
+  --pill-reminder-color: #FFD080;
+  --pill-personal-border: rgba(140, 100, 255, 0.3);
+  --pill-work-border: rgba(0, 180, 120, 0.3);
+  --pill-reminder-border: rgba(220, 160, 0, 0.3);
+  --pill-personal-time: rgba(196, 176, 255, 0.6);
+  --pill-work-time: rgba(128, 255, 204, 0.6);
+  --pill-reminder-time: rgba(255, 208, 128, 0.6);
+}
+
+/* Warm theme */
+[data-theme="warm"] {
+  /* Base */
+  --bg-widget: #FDF4E7;
+  --bg-cell: rgba(255, 243, 220, 0.9);
+  --bg-cell-hover: rgba(255, 235, 195, 0.95);
+  --bg-cell-today: rgba(180, 90, 20, 0.2);
+  --bg-todo: rgba(255, 243, 220, 0.8);
+  --bg-notes: rgba(255, 243, 220, 0.8);
+  --bg-week-notes: rgba(255, 243, 220, 0.8);
+
+  /* Border */
+  --border-widget: rgba(160, 100, 30, 0.2);
+  --border-cell: rgba(160, 100, 30, 0.15);
+  --border-today: rgba(180, 90, 20, 0.5);
+
+  /* Text */
+  --text-primary: #1a0e00;
+  --text-secondary: rgba(80, 45, 5, 0.7);
+  --text-tertiary: rgba(80, 45, 5, 0.5);
+  --text-cell: rgba(50, 25, 0, 0.85);
+
+  /* Accent */
+  --accent: rgba(180, 90, 20, 0.9);
+  --accent-light: rgba(180, 90, 20, 0.15);
+  --accent-border: rgba(180, 90, 20, 0.5);
+
+  /* Nav buttons */
+  --bg-nav: rgba(160, 100, 30, 0.1);
+  --border-nav: rgba(160, 100, 30, 0.25);
+  --text-nav: rgba(100, 55, 10, 0.9);
+  --bg-drag: rgba(160, 100, 30, 0.12);
+  --text-drag: rgba(100, 55, 10, 0.4);
+
+  /* Pill pockets */
+  --pill-personal-bg: rgba(140, 80, 200, 0.2);
+  --pill-personal-color: #5C2A7E;
+  --pill-work-bg: rgba(0, 130, 80, 0.2);
+  --pill-work-color: #064830;
+  --pill-reminder-bg: rgba(180, 90, 20, 0.2);
+  --pill-reminder-color: #7A3A00;
+  --pill-personal-border: rgba(140, 80, 200, 0.25);
+  --pill-work-border: rgba(0, 130, 80, 0.25);
+  --pill-reminder-border: rgba(180, 90, 20, 0.25);
+  --pill-personal-time: rgba(92, 42, 126, 0.6);
+  --pill-work-time: rgba(6, 72, 48, 0.6);
+  --pill-reminder-time: rgba(122, 58, 0, 0.6);
+}
+
+/* Cool theme */
+[data-theme="cool"] {
+  /* Base */
+  --bg-widget: #F0F4FA;
+  --bg-cell: rgba(220, 230, 245, 0.7);
+  --bg-cell-hover: rgba(210, 225, 245, 0.95);
+  --bg-cell-today: rgba(40, 100, 200, 0.15);
+  --bg-todo: rgba(220, 230, 245, 0.6);
+  --bg-notes: rgba(220, 230, 245, 0.6);
+  --bg-week-notes: rgba(220, 230, 245, 0.6);
+
+  /* Border */
+  --border-widget: rgba(40, 100, 200, 0.1);
+  --border-cell: rgba(40, 100, 200, 0.08);
+  --border-today: rgba(40, 100, 200, 0.4);
+
+  /* Text */
+  --text-primary: #0a1a2e;
+  --text-secondary: rgba(20, 50, 100, 0.5);
+  --text-tertiary: rgba(20, 50, 100, 0.35);
+  --text-cell: rgba(15, 40, 80, 0.7);
+
+  /* Accent */
+  --accent: rgba(40, 100, 200, 0.8);
+  --accent-light: rgba(40, 100, 200, 0.15);
+  --accent-border: rgba(40, 100, 200, 0.4);
+
+  /* Nav buttons */
+  --bg-nav: rgba(40, 100, 200, 0.08);
+  --border-nav: rgba(40, 100, 200, 0.15);
+  --text-nav: rgba(20, 60, 140, 0.7);
+  --bg-drag: rgba(40, 100, 200, 0.1);
+  --text-drag: rgba(20, 60, 140, 0.3);
+
+  /* Pill pockets */
+  --pill-personal-bg: rgba(100, 70, 220, 0.15);
+  --pill-personal-color: #2A3A9E;
+  --pill-work-bg: rgba(0, 120, 180, 0.15);
+  --pill-work-color: #08405A;
+  --pill-reminder-bg: rgba(0, 100, 180, 0.15);
+  --pill-reminder-color: #083A6A;
+  --pill-personal-border: rgba(100, 70, 220, 0.2);
+  --pill-work-border: rgba(0, 120, 180, 0.2);
+  --pill-reminder-border: rgba(0, 100, 180, 0.2);
+  --pill-personal-time: rgba(42, 58, 158, 0.6);
+  --pill-work-time: rgba(8, 64, 90, 0.6);
+  --pill-reminder-time: rgba(8, 58, 106, 0.6);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -14,11 +211,11 @@ body {
 .widget {
   width: 100vw;
   height: 100vh;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-widget);
+  border: 1px solid var(--border-widget);
   border-radius: 10px;
   padding: 20px 20px 0 20px;
-  color: #1a1a1a;
+  color: var(--text-primary);
   overflow: hidden;
 }
 
@@ -27,20 +224,22 @@ body {
   justify-content: center;
   align-items: center;
   width: 100%;
-  padding: 4px 0 8px;
+  padding: 8px 0 12px;
+  cursor: default;
 }
 
 .drag-handle-dots {
-  background: rgba(0, 0, 0, 0.12);
+  background: var(--bg-drag);
   border-radius: 20px;
-  padding: 3px 16px;
+  padding: 4px 24px;
   font-size: 10px;
   letter-spacing: 2px;
-  color: rgba(0, 0, 0, 0.3);
+  color: var(--text-drag);
+  cursor: default;
 }
 
 .drag-handle-dots:hover {
-  background: rgba(0, 0, 0, 0.18);
+  background: var(--bg-nav);
 }
 
 .header {
@@ -54,12 +253,12 @@ body {
   font-size: 32px;
   font-weight: 300;
   letter-spacing: -1px;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .clock-date {
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--text-secondary);
   margin-top: 2px;
 }
 
@@ -73,34 +272,29 @@ body {
 .month-label {
   font-size: 13px;
   font-weight: 500;
-  color: rgba(0, 0, 0, 0.8);
+  color: var(--text-primary);
   text-align: right;
 }
 
-.nav {
-  display: flex;
-  gap: 6px;
-}
-
 .nav-btn {
-  background: rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--bg-nav);
+  border: 1px solid var(--border-nav);
   border-radius: 6px;
-  color: rgba(0, 0, 0, 0.6);
+  color: var(--text-nav);
   font-size: 16px;
   padding: 2px 10px;
   cursor: pointer;
 }
 
 .nav-btn:hover {
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--bg-cell-hover);
 }
 
 .back-btn {
-  background: rgba(0, 0, 0, 0.08);
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: var(--bg-nav);
+  border: 1px solid var(--border-nav);
   border-radius: 6px;
-  color: rgba(0, 0, 0, 0.6);
+  color: var(--text-nav);
   font-size: 12px;
   padding: 4px 10px;
   cursor: pointer;
@@ -108,7 +302,7 @@ body {
 }
 
 .back-btn:hover {
-  background: rgba(0, 0, 0, 0.15);
+  background: var(--bg-cell-hover);
 }
 
 .legend {
@@ -122,7 +316,7 @@ body {
   align-items: center;
   gap: 5px;
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--text-secondary);
 }
 
 .legend-dot {
@@ -177,7 +371,7 @@ body {
 
 .day-header {
   font-size: 10px;
-  color: rgba(0, 0, 0, 0.4);
+  color: var(--text-tertiary);
   text-align: center;
   padding: 3px 0 6px;
   text-transform: uppercase;
@@ -186,25 +380,23 @@ body {
 .day-cell {
   min-height: 58px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: var(--bg-cell);
+  border: 1px solid var(--border-cell);
   padding: 4px;
   cursor: pointer;
 }
 
 .day-cell:hover {
-  background: rgba(255, 255, 255, 0.25);
+  background: var(--bg-cell-hover);
 }
 
 .day-cell.today {
-  background: rgba(80, 60, 200, 0.15);
-  border-color: rgba(80, 60, 200, 0.4);
+  background: var(--bg-cell-today);
+  border-color: var(--border-today);
 }
 
 .day-cell.today .day-num {
-  background: rgba(80, 60, 200, 0.7);
+  background: var(--accent);
   border-radius: 50%;
   color: #fff;
   font-weight: 500;
@@ -216,7 +408,7 @@ body {
 
 .day-num {
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.7);
+  color: var(--text-cell);
   width: 18px;
   height: 18px;
   display: flex;
@@ -236,13 +428,25 @@ body {
   cursor: pointer;
 }
 
-.event-pill.personal { background: rgba(100, 70, 220, 0.2); color: #3C2A9E; }
-.event-pill.work { background: rgba(0, 140, 90, 0.2); color: #085041; }
-.event-pill.reminder { background: rgba(180, 110, 0, 0.2); color: #7A4A00; }
+.event-pill.personal { background: var(--pill-personal-bg); color: var(--pill-personal-color); }
+.event-pill.work { background: var(--pill-work-bg); color: var(--pill-work-color); }
+.event-pill.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); }
+
+.day-event-pill.personal { background: var(--pill-personal-bg); border: 1px solid var(--pill-personal-border); }
+.day-event-pill.work { background: var(--pill-work-bg); border: 1px solid var(--pill-work-border); }
+.day-event-pill.reminder { background: var(--pill-reminder-bg); border: 1px solid var(--pill-reminder-border); }
+
+.day-event-pill.personal .day-event-title { color: var(--pill-personal-color); }
+.day-event-pill.work .day-event-title { color: var(--pill-work-color); }
+.day-event-pill.reminder .day-event-title { color: var(--pill-reminder-color); }
+
+.day-event-pill.personal .day-event-time { color: var(--pill-personal-time); }
+.day-event-pill.work .day-event-time { color: var(--pill-work-time); }
+.day-event-pill.reminder .day-event-time { color: var(--pill-reminder-time); }
 
 .more-pill {
   font-size: 9px;
-  color: rgba(0, 0, 0, 0.4);
+  color: var(--text-tertiary);
   padding: 1px 3px;
 }
 
@@ -262,28 +466,28 @@ body {
 
 .week-day-header {
   font-size: 10px;
-  color: rgba(0, 0, 0, 0.4);
+  color: var(--text-tertiary);
   text-align: center;
   text-transform: uppercase;
   padding-bottom: 4px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid var(--border-cell);
 }
 
 .week-day-header.today {
-  color: rgba(80, 60, 200, 0.9);
+  color: var(--accent);
   font-weight: 600;
 }
 
 .week-day-num {
   font-size: 16px;
   font-weight: 300;
-  color: rgba(0, 0, 0, 0.7);
+  color: var(--text-cell);
   text-align: center;
   padding: 4px 0;
 }
 
 .week-day-num.today {
-  background: rgba(80, 60, 200, 0.7);
+  background: var(--accent);
   color: #fff;
   border-radius: 50%;
   width: 28px;
@@ -305,25 +509,25 @@ body {
 .week-notes {
   flex: 1;
   min-height: 120px;
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--bg-week-notes);
+  border: 1px solid var(--border-cell);
   border-radius: 6px;
   padding: 6px;
   font-size: 10px;
   font-family: 'Segoe UI', sans-serif;
-  color: rgba(0, 0, 0, 0.7);
+  color: var(--text-cell);
   resize: none;
   outline: none;
   cursor: text;
 }
 
-.week-notes::placeholder {
-  color: rgba(0, 0, 0, 0.25);
+.week-notes:focus {
+  background: var(--bg-cell-hover);
+  border-color: var(--accent-border);
 }
 
-.week-notes:focus {
-  background: rgba(255, 255, 255, 0.25);
-  border-color: rgba(80, 60, 200, 0.3);
+.week-notes::placeholder {
+  color: var(--text-tertiary);
 }
 
 /* Day view */
@@ -346,21 +550,21 @@ body {
 .day-view-title {
   font-size: 36px;
   font-weight: 300;
-  color: #1a1a1a;
+  color: var(--text-primary);
   line-height: 1.1;
 }
 
 .day-view-subtitle {
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--text-secondary);
   margin-top: 4px;
 }
 
 .day-view-add-btn {
-  background: rgba(80, 60, 200, 0.1);
-  border: 1px solid rgba(80, 60, 200, 0.3);
+  background: var(--accent-light);
+  border: 1px solid var(--accent-border);
   border-radius: 8px;
-  color: rgba(80, 60, 200, 0.9);
+  color: var(--accent);
   font-size: 12px;
   padding: 6px 14px;
   cursor: pointer;
@@ -368,7 +572,8 @@ body {
 }
 
 .day-view-add-btn:hover {
-  background: rgba(80, 60, 200, 0.2);
+  background: var(--accent-light);
+  opacity: 0.8;
 }
 
 .day-view-body {
@@ -379,8 +584,8 @@ body {
 }
 
 .day-todo-section {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--bg-todo);
+  border: 1px solid var(--border-cell);
   border-radius: 8px;
   padding: 10px;
 }
@@ -394,7 +599,7 @@ body {
 
 .day-todo-label {
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -402,7 +607,7 @@ body {
 .day-todo-add {
   background: none;
   border: none;
-  color: rgba(0, 0, 0, 0.3);
+  color: var(--text-tertiary);
   font-size: 18px;
   cursor: pointer;
   line-height: 1;
@@ -410,7 +615,7 @@ body {
 }
 
 .day-todo-add:hover {
-  color: rgba(0, 0, 0, 0.6);
+  color: var(--text-secondary);
 }
 
 .day-todo-list {
@@ -435,7 +640,7 @@ body {
 
 .day-todo-item span {
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.7);
+  color: var(--text-cell);
   flex: 1;
 }
 
@@ -482,17 +687,21 @@ body {
   transition: all 0.15s ease;
 }
 
-.day-event-pill.personal { background: rgba(100, 70, 220, 0.15); border: 1px solid rgba(100, 70, 220, 0.2); }
-.day-event-pill.work { background: rgba(0, 140, 90, 0.15); border: 1px solid rgba(0, 140, 90, 0.2); }
-.day-event-pill.reminder { background: rgba(180, 110, 0, 0.15); border: 1px solid rgba(180, 110, 0, 0.2); }
+.event-pill.personal { background: var(--pill-personal-bg); color: var(--pill-personal-color); }
+.event-pill.work { background: var(--pill-work-bg); color: var(--pill-work-color); }
+.event-pill.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); }
 
-.day-event-pill.personal .day-event-title { color: #3C2A9E; }
-.day-event-pill.work .day-event-title { color: #085041; }
-.day-event-pill.reminder .day-event-title { color: #7A4A00; }
+.day-event-pill.personal { background: var(--pill-personal-bg); border: 1px solid var(--pill-personal-border); }
+.day-event-pill.work { background: var(--pill-work-bg); border: 1px solid var(--pill-work-border); }
+.day-event-pill.reminder { background: var(--pill-reminder-bg); border: 1px solid var(--pill-reminder-border); }
 
-.day-event-pill.personal .day-event-time { color: rgba(60, 42, 158, 0.6); }
-.day-event-pill.work .day-event-time { color: rgba(8, 80, 65, 0.6); }
-.day-event-pill.reminder .day-event-time { color: rgba(122, 74, 0, 0.6); }
+.day-event-pill.personal .day-event-title { color: var(--pill-personal-color); }
+.day-event-pill.work .day-event-title { color: var(--pill-work-color); }
+.day-event-pill.reminder .day-event-title { color: var(--pill-reminder-color); }
+
+.day-event-pill.personal .day-event-time { color: var(--pill-personal-time); }
+.day-event-pill.work .day-event-time { color: var(--pill-work-time); }
+.day-event-pill.reminder .day-event-time { color: var(--pill-reminder-time); }
 
 .day-event-pill-header {
   display: flex;
@@ -503,12 +712,12 @@ body {
 .day-event-title {
   font-size: 11px;
   font-weight: 500;
-  color: #1a1a1a;
+  color: var(--text-primary);
 }
 
 .day-event-time {
   font-size: 10px;
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--text-secondary);
 }
 
 .day-event-expanded {
@@ -560,15 +769,15 @@ body {
 }
 
 .day-notes-section {
-  background: rgba(255, 255, 255, 0.15);
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--bg-notes);
+  border: 1px solid var(--border-cell);
   border-radius: 8px;
   padding: 10px;
 }
 
 .day-notes-label {
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.5);
+  color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   margin-bottom: 6px;
@@ -581,7 +790,7 @@ body {
   border: none;
   font-size: 12px;
   font-family: 'Segoe UI', sans-serif;
-  color: rgba(0, 0, 0, 0.7);
+  color: var(--text-cell);
   resize: none;
   outline: none;
   cursor: text;
@@ -675,4 +884,63 @@ body {
 .modal-actions .del-btn {
   color: rgba(180, 40, 40, 0.9);
   border-color: rgba(180, 40, 40, 0.3);
+}
+
+/* Context menu */
+.context-menu {
+  position: fixed;
+  background: var(--bg-widget);
+  border: 1px solid var(--border-widget);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 180px;
+  z-index: 1000;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.context-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.context-menu-item:hover {
+  background: var(--bg-cell-hover);
+}
+
+.context-menu-item.danger {
+  color: rgba(180, 40, 40, 0.9);
+}
+
+.context-menu-divider {
+  height: 1px;
+  background: var(--border-cell);
+  margin: 4px 0;
+}
+
+.context-menu-label {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  padding: 6px 10px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.context-menu-item .check {
+  color: var(--accent);
+  font-size: 14px;
+}
+
+.theme-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 8px;
+  display: inline-block;
 }
