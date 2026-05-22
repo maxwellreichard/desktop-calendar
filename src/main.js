@@ -13,6 +13,9 @@ let dayViewDate = null;
 let editingId = null;
 let expandedEventId = null;
 
+let holidayEvents = [];
+let selectedCountries = JSON.parse(localStorage.getItem('selected_countries') || '[]');
+
 async function initStorage() {
   try {
     const rawEvents = localStorage.getItem('calendar_events');
@@ -43,6 +46,16 @@ async function syncGoogleEvents() {
     console.error('Google sync error:', e);
   }
 }
+
+function syncHolidays() {
+  if (selectedCountries.length === 0) {
+    holidayEvents = [];
+    return;
+  }
+  holidayEvents = getHolidaysForMonth(viewYear, viewMonth, selectedCountries);
+  renderCalendar();
+}
+
 async function saveEvents() {
   localStorage.setItem('calendar_events', JSON.stringify(events));
 }
@@ -69,7 +82,8 @@ function getEventsForDate(y, m, d) {
   const key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
   const local = events.filter(e => e.date === key);
   const google = googleEvents.filter(e => e.date === key);
-  return [...local, ...google];
+  const holidays = holidayEvents.filter(e => e.date === key);
+  return [...local, ...google, ...holidays];
 }
 
 function dateKey(y, m, d) {
@@ -149,6 +163,20 @@ function renderCalendar() {
     grid.appendChild(cell);
   });
 }
+
+document.getElementById('prev').onclick = () => {
+  viewMonth--;
+  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
+  renderCalendar();
+  syncHolidays();
+};
+
+document.getElementById('next').onclick = () => {
+  viewMonth++;
+  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
+  renderCalendar();
+  syncHolidays();
+};
 
 // ── Week view ─────────────────────────────────────────────────────────────────
 
@@ -990,12 +1018,14 @@ window.addEventListener('DOMContentLoaded', () => {
     viewMonth--;
     if (viewMonth < 0) { viewMonth = 11; viewYear--; }
     renderCalendar();
+    syncHolidays();
   };
 
   document.getElementById('next').onclick = () => {
     viewMonth++;
     if (viewMonth > 11) { viewMonth = 0; viewYear++; }
     renderCalendar();
+    syncHolidays();
   };
 
   document.getElementById('back-btn').onclick = () => switchToMonth();
@@ -1015,7 +1045,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
   updateClock();
   setInterval(updateClock, 1000);
-  initStorage().then(() => renderCalendar());
+  initStorage().then(() => {
+    renderCalendar();
+    syncHolidays();
+  });
   loadTheme();
   initGoogleCalendar();
   setTimeout(() => restoreWindowPosition(), 100);
@@ -1103,7 +1136,7 @@ async function showContextMenu(x, y) {
   const themeOptions = [
     { id: 'default', label: 'Default', color: '#FAF7F2', border: '#ccc' },
     { id: 'dark', label: 'Dark', color: '#1e1e2e', border: '#444' },
-    { id: 'warm', label: 'Warm', color: '#FDF4E7', border: '#d4a96a' },
+    { id: 'warm', label: 'Warm', color: '#F9F5D7', border: '#665C54' },
     { id: 'cool', label: 'Cool', color: '#F0F4FA', border: '#6a9ad4' },
   ];
 
@@ -1211,6 +1244,43 @@ async function showContextMenu(x, y) {
     menu.appendChild(syncItem);
   }
 
+  // Divider
+  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
+
+  // Holidays section
+  const holidayLabel = document.createElement('div');
+  holidayLabel.className = 'context-menu-label';
+  holidayLabel.textContent = 'Holidays';
+  menu.appendChild(holidayLabel);
+
+  const countries = [
+    { code: 'US', name: 'United States' },
+    { code: 'CA', name: 'Canada' },
+    { code: 'UK', name: 'United Kingdom' },
+    { code: 'AU', name: 'Australia' },
+  ];
+
+  countries.forEach(country => {
+    const item = document.createElement('div');
+    item.className = 'context-menu-item';
+    const isSelected = selectedCountries.includes(country.code);
+    item.innerHTML = `
+      <span>${country.name}</span>
+      ${isSelected ? '<span class="check">✓</span>' : ''}
+    `;
+    item.onclick = () => {
+      if (isSelected) {
+        selectedCountries = selectedCountries.filter(c => c !== country.code);
+      } else {
+        selectedCountries.push(country.code);
+      }
+      localStorage.setItem('selected_countries', JSON.stringify(selectedCountries));
+      syncHolidays();
+      closeContextMenu();
+    };
+    menu.appendChild(item);
+  });
+
   // About
   const aboutItem = document.createElement('div');
   aboutItem.className = 'context-menu-item';
@@ -1230,6 +1300,7 @@ async function showContextMenu(x, y) {
   menu.appendChild(closeItem);
 
   document.body.appendChild(menu);
+  document.getElementById('widget').appendChild(menu);
 
   // Close on click outside
   setTimeout(() => {

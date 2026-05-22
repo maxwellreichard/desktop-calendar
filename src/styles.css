@@ -52,104 +52,133 @@
   --pill-google-color: #1a56b0;
   --pill-google-border: rgba(66, 133, 244, 0.25);
   --pill-google-time: rgba(26, 86, 176, 0.6);
+
+  /* Holiday pills */
+  --pill-holiday-bg: rgba(0, 0, 0, 0.06);
+  --pill-holiday-color: rgba(0, 0, 0, 0.45);
+  --pill-holiday-border: rgba(0, 0, 0, 0.1);
+  --pill-holiday-time: rgba(0, 0, 0, 0.3);
 }
 
 /* Dark theme */
 [data-theme="dark"] {
   /* Base */
-  --bg-widget: #1e1e2e;
-  --bg-cell: rgba(255, 255, 255, 0.05);
-  --bg-cell-hover: rgba(255, 255, 255, 0.1);
-  --bg-cell-today: rgba(120, 100, 255, 0.25);
-  --bg-todo: rgba(255, 255, 255, 0.07);
-  --bg-notes: rgba(255, 255, 255, 0.07);
-  --bg-week-notes: rgba(255, 255, 255, 0.07);
+  --bg-widget: #282828;
+  --bg-cell: rgba(60, 56, 54, 0.9);
+  --bg-cell-hover: rgba(80, 73, 69, 0.95);
+  --bg-cell-today: rgba(215, 153, 33, 0.2);
+  --bg-todo: rgba(60, 56, 54, 0.8);
+  --bg-notes: rgba(60, 56, 54, 0.8);
+  --bg-week-notes: rgba(60, 56, 54, 0.8);
 
   /* Border */
-  --border-widget: rgba(255, 255, 255, 0.08);
-  --border-cell: rgba(255, 255, 255, 0.08);
-  --border-today: rgba(140, 120, 255, 0.5);
+  --border-widget: rgba(168, 153, 132, 0.2);
+  --border-cell: rgba(168, 153, 132, 0.15);
+  --border-today: rgba(215, 153, 33, 0.6);
 
   /* Text */
-  --text-primary: #e8e8f0;
-  --text-secondary: rgba(255, 255, 255, 0.5);
-  --text-tertiary: rgba(255, 255, 255, 0.3);
-  --text-cell: rgba(255, 255, 255, 0.7);
+  --text-primary: #EBDBB2;
+  --text-secondary: rgba(235, 219, 178, 0.6);
+  --text-tertiary: rgba(235, 219, 178, 0.4);
+  --text-cell: rgba(235, 219, 178, 0.85);
 
   /* Accent */
-  --accent: rgba(140, 120, 255, 0.8);
-  --accent-light: rgba(140, 120, 255, 0.2);
-  --accent-border: rgba(140, 120, 255, 0.5);
+  --accent: rgba(215, 153, 33, 0.9);
+  --accent-light: rgba(215, 153, 33, 0.15);
+  --accent-border: rgba(215, 153, 33, 0.5);
 
   /* Nav buttons */
-  --bg-nav: rgba(255, 255, 255, 0.08);
-  --border-nav: rgba(255, 255, 255, 0.15);
-  --text-nav: rgba(255, 255, 255, 0.6);
-  --bg-drag: rgba(255, 255, 255, 0.1);
-  --text-drag: rgba(255, 255, 255, 0.3);
-  
-  /* Pill pockets */
-  --pill-personal-bg: rgba(140, 100, 255, 0.25);
-  --pill-personal-color: #C4B0FF;
-  --pill-work-bg: rgba(0, 180, 120, 0.25);
-  --pill-work-color: #80FFCC;
-  --pill-reminder-bg: rgba(220, 160, 0, 0.25);
-  --pill-reminder-color: #FFD080;
-  --pill-personal-border: rgba(140, 100, 255, 0.3);
-  --pill-work-border: rgba(0, 180, 120, 0.3);
-  --pill-reminder-border: rgba(220, 160, 0, 0.3);
-  --pill-personal-time: rgba(196, 176, 255, 0.6);
-  --pill-work-time: rgba(128, 255, 204, 0.6);
-  --pill-reminder-time: rgba(255, 208, 128, 0.6);
-}
+  --bg-nav: rgba(168, 153, 132, 0.1);
+  --border-nav: rgba(168, 153, 132, 0.25);
+  --text-nav: rgba(235, 219, 178, 0.7);
+  --bg-drag: rgba(168, 153, 132, 0.15);
+  --text-drag: rgba(235, 219, 178, 0.3);
 
+  /* Pill pockets */
+  --pill-personal-bg: rgba(177, 98, 134, 0.25);
+  --pill-personal-color: #D3869B;
+  --pill-work-bg: rgba(142, 192, 124, 0.2);
+  --pill-work-color: #B8BB26;
+  --pill-reminder-bg: rgba(250, 189, 47, 0.2);
+  --pill-reminder-color: #FABD2F;
+  --pill-personal-border: rgba(177, 98, 134, 0.35);
+  --pill-work-border: rgba(142, 192, 124, 0.3);
+  --pill-reminder-border: rgba(250, 189, 47, 0.3);
+  --pill-personal-time: rgba(211, 134, 155, 0.6);
+  --pill-work-time: rgba(184, 187, 38, 0.6);
+  --pill-reminder-time: rgba(250, 189, 47, 0.6);
+
+  /* Google */
+  --pill-google-bg: rgba(131, 165, 152, 0.25);
+  --pill-google-color: #83A598;
+  --pill-google-border: rgba(131, 165, 152, 0.35);
+  --pill-google-time: rgba(131, 165, 152, 0.6);
+
+  /* Holiday */
+  --pill-holiday-bg: rgba(168, 153, 132, 0.15);
+  --pill-holiday-color: rgba(235, 219, 178, 0.45);
+  --pill-holiday-border: rgba(168, 153, 132, 0.2);
+  --pill-holiday-time: rgba(235, 219, 178, 0.3);
+}
 /* Warm theme */
 [data-theme="warm"] {
   /* Base */
-  --bg-widget: #FDF4E7;
-  --bg-cell: rgba(255, 243, 220, 0.9);
-  --bg-cell-hover: rgba(255, 235, 195, 0.95);
-  --bg-cell-today: rgba(180, 90, 20, 0.2);
-  --bg-todo: rgba(255, 243, 220, 0.8);
-  --bg-notes: rgba(255, 243, 220, 0.8);
-  --bg-week-notes: rgba(255, 243, 220, 0.8);
+  --bg-widget: #F9F5D7;
+  --bg-cell: rgba(242, 229, 188, 0.9);
+  --bg-cell-hover: rgba(235, 219, 178, 0.95);
+  --bg-cell-today: rgba(175, 58, 3, 0.15);
+  --bg-todo: rgba(242, 229, 188, 0.8);
+  --bg-notes: rgba(242, 229, 188, 0.8);
+  --bg-week-notes: rgba(242, 229, 188, 0.8);
 
   /* Border */
-  --border-widget: rgba(160, 100, 30, 0.2);
-  --border-cell: rgba(160, 100, 30, 0.15);
-  --border-today: rgba(180, 90, 20, 0.5);
+  --border-widget: rgba(102, 92, 84, 0.2);
+  --border-cell: rgba(102, 92, 84, 0.15);
+  --border-today: rgba(175, 58, 3, 0.5);
 
   /* Text */
-  --text-primary: #1a0e00;
-  --text-secondary: rgba(80, 45, 5, 0.7);
-  --text-tertiary: rgba(80, 45, 5, 0.5);
-  --text-cell: rgba(50, 25, 0, 0.85);
+  --text-primary: #3C3836;
+  --text-secondary: rgba(60, 56, 54, 0.6);
+  --text-tertiary: rgba(60, 56, 54, 0.4);
+  --text-cell: rgba(60, 56, 54, 0.85);
 
   /* Accent */
-  --accent: rgba(180, 90, 20, 0.9);
-  --accent-light: rgba(180, 90, 20, 0.15);
-  --accent-border: rgba(180, 90, 20, 0.5);
+  --accent: rgba(175, 58, 3, 0.9);
+  --accent-light: rgba(175, 58, 3, 0.12);
+  --accent-border: rgba(175, 58, 3, 0.4);
 
   /* Nav buttons */
-  --bg-nav: rgba(160, 100, 30, 0.1);
-  --border-nav: rgba(160, 100, 30, 0.25);
-  --text-nav: rgba(100, 55, 10, 0.9);
-  --bg-drag: rgba(160, 100, 30, 0.12);
-  --text-drag: rgba(100, 55, 10, 0.4);
+  --bg-nav: rgba(102, 92, 84, 0.1);
+  --border-nav: rgba(102, 92, 84, 0.2);
+  --text-nav: rgba(60, 56, 54, 0.7);
+  --bg-drag: rgba(102, 92, 84, 0.12);
+  --text-drag: rgba(60, 56, 54, 0.3);
 
   /* Pill pockets */
-  --pill-personal-bg: rgba(140, 80, 200, 0.2);
-  --pill-personal-color: #5C2A7E;
-  --pill-work-bg: rgba(0, 130, 80, 0.2);
-  --pill-work-color: #064830;
-  --pill-reminder-bg: rgba(180, 90, 20, 0.2);
-  --pill-reminder-color: #7A3A00;
-  --pill-personal-border: rgba(140, 80, 200, 0.25);
-  --pill-work-border: rgba(0, 130, 80, 0.25);
-  --pill-reminder-border: rgba(180, 90, 20, 0.25);
-  --pill-personal-time: rgba(92, 42, 126, 0.6);
-  --pill-work-time: rgba(6, 72, 48, 0.6);
-  --pill-reminder-time: rgba(122, 58, 0, 0.6);
+  --pill-personal-bg: rgba(143, 63, 113, 0.15);
+  --pill-personal-color: #8F3F76;
+  --pill-work-bg: rgba(121, 116, 14, 0.15);
+  --pill-work-color: #79740E;
+  --pill-reminder-bg: rgba(181, 118, 20, 0.15);
+  --pill-reminder-color: #B57614;
+  --pill-personal-border: rgba(143, 63, 113, 0.25);
+  --pill-work-border: rgba(121, 116, 14, 0.2);
+  --pill-reminder-border: rgba(181, 118, 20, 0.2);
+  --pill-personal-time: rgba(143, 63, 113, 0.55);
+  --pill-work-time: rgba(121, 116, 14, 0.55);
+  --pill-reminder-time: rgba(181, 118, 20, 0.55);
+
+  /* Google */
+  --pill-google-bg: rgba(7, 102, 120, 0.15);
+  --pill-google-color: #076678;
+  --pill-google-border: rgba(7, 102, 120, 0.25);
+  --pill-google-time: rgba(7, 102, 120, 0.55);
+
+  /* Holiday */
+  --pill-holiday-bg: rgba(102, 92, 84, 0.1);
+  --pill-holiday-color: rgba(60, 56, 54, 0.45);
+  --pill-holiday-border: rgba(102, 92, 84, 0.15);
+  --pill-holiday-time: rgba(60, 56, 54, 0.3);
 }
 
 /* Cool theme */
@@ -334,6 +363,7 @@ body {
 .legend-dot.work { background: rgba(0, 140, 90, 0.8); }
 .legend-dot.reminder { background: rgba(180, 110, 0, 0.8); }
 .legend-dot.google { background: rgba(66, 133, 244, 0.8); }
+.legend-dot.holiday { background: rgba(0, 0, 0, 0.3); }
 
 /* View container */
 .view-container {
@@ -442,11 +472,14 @@ body {
 .event-pill.work { background: var(--pill-work-bg); color: var(--pill-work-color); }
 .event-pill.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); }
 .event-pill.google { background: var(--pill-google-bg); color: var(--pill-google-color); }
+.event-pill.holiday { background: var(--pill-holiday-bg); color: var(--pill-holiday-color); }
+
 
 .more-pill {
-  font-size: 9px;
+  font-size: 8px;
   color: var(--text-tertiary);
-  padding: 1px 3px;
+  padding: 0 3px;
+  line-height: 1;
 }
 
 .day-event-pill {
@@ -460,16 +493,22 @@ body {
 .day-event-pill.work { background: var(--pill-work-bg); border: 1px solid var(--pill-work-border); }
 .day-event-pill.reminder { background: var(--pill-reminder-bg); border: 1px solid var(--pill-reminder-border); }
 .day-event-pill.google { background: var(--pill-google-bg); border: 1px solid var(--pill-google-border); }
+.day-event-pill.holiday { background: var(--pill-holiday-bg); border: 1px solid var(--pill-holiday-border); }
+
 
 .day-event-pill.personal .day-event-title { color: var(--pill-personal-color); }
 .day-event-pill.work .day-event-title { color: var(--pill-work-color); }
 .day-event-pill.reminder .day-event-title { color: var(--pill-reminder-color); }
 .day-event-pill.google .day-event-title { color: var(--pill-google-color); }
+.day-event-pill.holiday .day-event-title { color: var(--pill-holiday-color); }
+
 
 .day-event-pill.personal .day-event-time { color: var(--pill-personal-time); }
 .day-event-pill.work .day-event-time { color: var(--pill-work-time); }
 .day-event-pill.reminder .day-event-time { color: var(--pill-reminder-time); }
 .day-event-pill.google .day-event-time { color: var(--pill-google-time); }
+.day-event-pill.holiday .day-event-time { color: var(--pill-holiday-time); }
+
 
 /* Week view */
 .week-view-grid {
@@ -909,7 +948,7 @@ body {
 
 /* Context menu */
 .context-menu {
-  position: fixed;
+  position: absolute;
   background: var(--bg-widget);
   border: 1px solid var(--border-widget);
   border-radius: 8px;
