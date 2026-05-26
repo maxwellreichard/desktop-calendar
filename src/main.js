@@ -13,6 +13,8 @@ let dayViewDate = null;
 let editingId = null;
 let expandedEventId = null;
 
+let monthRecurringEvents = [];
+
 let holidayEvents = [];
 let selectedCountries = JSON.parse(localStorage.getItem('selected_countries') || '[]');
 
@@ -80,19 +82,114 @@ function updateClock() {
 
 function getEventsForDate(y, m, d) {
   const key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-  const local = events.filter(e => e.date === key);
+  const local = events.filter(e => e.date === key && !e.recurrence);
+  const recurring = monthRecurringEvents.filter(e => e.date === key);
   const google = googleEvents.filter(e => e.date === key);
   const holidays = holidayEvents.filter(e => e.date === key);
-  return [...local, ...google, ...holidays];
+  return [...local, ...recurring, ...google, ...holidays];
 }
 
 function dateKey(y, m, d) {
   return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
 }
 
+// ── Recurrence ────────────────────────────────────────────────────────────────
+
+function getRecurringOccurrences(event, year, month) {
+  if (!event.recurrence) return [];
+  
+  const occurrences = [];
+  const startDate = new Date(event.date + 'T00:00:00');
+  const monthStart = new Date(year, month, 1);
+  const monthEnd = new Date(year, month + 1, 0);
+  
+  const { frequency, interval = 1, endType, endDate, endCount } = event.recurrence;
+  
+  let current = new Date(startDate);
+  let count = 0;
+  const maxIterations = 3650; // 10 years safety limit
+  let iterations = 0;
+
+  while (current <= monthEnd && iterations < maxIterations) {
+    iterations++;
+    
+    // Check end conditions
+    if (endType === 'date' && endDate && current > new Date(endDate + 'T00:00:00')) break;
+    if (endType === 'count' && count >= endCount) break;
+
+    if (current >= monthStart && current <= monthEnd) {
+      const y = current.getFullYear();
+      const m = String(current.getMonth() + 1).padStart(2, '0');
+      const d = String(current.getDate()).padStart(2, '0');
+      const key = `${y}-${m}-${d}`;
+
+      // Check if this occurrence has been deleted or modified
+      const exceptions = event.recurrence.exceptions || {};
+      if (!exceptions[key]) {
+        occurrences.push({
+          ...event,
+          id: `${event.id}_${key}`,
+          date: key,
+          isRecurring: true,
+          recurringParentId: event.id,
+          originalDate: key
+        });
+      } else if (exceptions[key] !== 'deleted') {
+        // Modified occurrence
+        occurrences.push({
+          ...event,
+          ...exceptions[key],
+          id: `${event.id}_${key}`,
+          date: key,
+          isRecurring: true,
+          recurringParentId: event.id,
+          originalDate: key
+        });
+      }
+    }
+
+    // Advance to next occurrence
+    const next = new Date(current);
+    switch (frequency) {
+      case 'daily':
+        next.setDate(next.getDate() + interval);
+        break;
+      case 'weekly':
+        next.setDate(next.getDate() + (7 * interval));
+        break;
+      case 'monthly':
+        next.setMonth(next.getMonth() + interval);
+        break;
+      case 'yearly':
+        next.setFullYear(next.getFullYear() + interval);
+        break;
+      case 'custom':
+        next.setDate(next.getDate() + interval);
+        break;
+    }
+
+    if (next <= current) break; // Safety check
+    current = next;
+    if (current >= monthStart) count++;
+  }
+
+  return occurrences;
+}
+
+function getAllEventsForMonth(year, month) {
+  const recurringOccurrences = [];
+  events.forEach(event => {
+    if (event.recurrence) {
+      recurringOccurrences.push(...getRecurringOccurrences(event, year, month));
+    }
+  });
+  return recurringOccurrences;
+}
+
 // ── Month view ────────────────────────────────────────────────────────────────
 
 function renderCalendar() {
+  monthRecurringEvents = getAllEventsForMonth(viewYear, viewMonth);
   const grid = document.getElementById('cal-grid');
   document.getElementById('month-label').textContent = new Date(viewYear, viewMonth, 1)
     .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -254,6 +351,7 @@ function renderWeekView() {
 // ── Day view ──────────────────────────────────────────────────────────────────
 
 function renderDayView() {
+  monthRecurringEvents = getAllEventsForMonth(dayViewDate.getFullYear(), dayViewDate.getMonth());
   const container = document.getElementById('day-view');
   container.innerHTML = '';
   const y = dayViewDate.getFullYear();
@@ -479,11 +577,34 @@ function toggleEventExpand(pill, ev, key) {
   delBtn.textContent = 'Delete';
   delBtn.onmousedown = e => e.stopPropagation();
   delBtn.onclick = async () => {
-    if (googleConnected && ev.googleId) {
-      await deleteGoogleEvent(ev.googleId);
+    if (ev.isRecurring) {
+      // Ask user - delete just this or all future
+      const choice = confirm('Delete all future occurrences? Click Cancel to delete just this one.');
+      const parentEvent = events.find(e => e.id === ev.recurringParentId);
+      if (parentEvent) {
+        if (choice) {
+          // Delete all future - set end date to day before this occurrence
+          const prevDay = new Date(ev.date + 'T00:00:00');
+          prevDay.setDate(prevDay.getDate() - 1);
+          const y = prevDay.getFullYear();
+          const m = String(prevDay.getMonth() + 1).padStart(2, '0');
+          const d = String(prevDay.getDate()).padStart(2, '0');
+          parentEvent.recurrence.endType = 'date';
+          parentEvent.recurrence.endDate = `${y}-${m}-${d}`;
+        } else {
+          // Delete just this occurrence
+          if (!parentEvent.recurrence.exceptions) parentEvent.recurrence.exceptions = {};
+          parentEvent.recurrence.exceptions[ev.date] = 'deleted';
+        }
+        await saveEvents();
+      }
+    } else {
+      if (googleConnected && ev.googleId) {
+        await deleteGoogleEvent(ev.googleId);
+      }
+      events = events.filter(e => e.id !== ev.id);
+      await saveEvents();
     }
-    events = events.filter(e => e.id !== ev.id);
-    await saveEvents();
     renderDayView();
   };
 
@@ -492,20 +613,42 @@ function toggleEventExpand(pill, ev, key) {
   saveBtn.textContent = 'Save';
   saveBtn.onmousedown = e => e.stopPropagation();
   saveBtn.onclick = async () => {
-    const idx = events.findIndex(e => e.id === ev.id);
-    if (idx !== -1) {
-      events[idx] = {
-        ...events[idx],
-        title: titleInput.value.trim(),
-        time: timeInput.value,
-        type: typeSelect.value,
-        notes: notesInput.value.trim()
-      };
-      await saveEvents();
-
-      // Update Google Calendar if connected and event has a googleId
-      if (googleConnected && events[idx].googleId) {
-        await updateGoogleEvent(events[idx].googleId, events[idx]);
+    if (ev.isRecurring) {
+      const choice = confirm('Edit all future occurrences? Click Cancel to edit just this one.');
+      const parentEvent = events.find(e => e.id === ev.recurringParentId);
+      if (parentEvent) {
+        if (choice) {
+          // Edit all future - update parent event
+          parentEvent.title = titleInput.value.trim();
+          parentEvent.time = timeInput.value;
+          parentEvent.type = typeSelect.value;
+          parentEvent.notes = notesInput.value.trim();
+        } else {
+          // Edit just this occurrence - store as exception
+          if (!parentEvent.recurrence.exceptions) parentEvent.recurrence.exceptions = {};
+          parentEvent.recurrence.exceptions[ev.date] = {
+            title: titleInput.value.trim(),
+            time: timeInput.value,
+            type: typeSelect.value,
+            notes: notesInput.value.trim()
+          };
+        }
+        await saveEvents();
+      }
+    } else {
+      const idx = events.findIndex(e => e.id === ev.id);
+      if (idx !== -1) {
+        events[idx] = {
+          ...events[idx],
+          title: titleInput.value.trim(),
+          time: timeInput.value,
+          type: typeSelect.value,
+          notes: notesInput.value.trim()
+        };
+        await saveEvents();
+        if (googleConnected && events[idx].googleId) {
+          await updateGoogleEvent(events[idx].googleId, events[idx]);
+        }
       }
     }
     renderDayView();
@@ -561,6 +704,81 @@ function openInlineEventForm(key, container) {
   notesInput.className = 'day-todo-input';
   notesInput.onmousedown = e => e.stopPropagation();
 
+  // Recurrence section
+  const repeatSelect = document.createElement('select');
+  repeatSelect.className = 'day-todo-input';
+  repeatSelect.onmousedown = e => e.stopPropagation();
+  [
+    { value: 'none', label: 'Does not repeat' },
+    { value: 'daily', label: 'Daily' },
+    { value: 'weekly', label: 'Weekly' },
+    { value: 'monthly', label: 'Monthly' },
+    { value: 'yearly', label: 'Yearly' },
+    { value: 'custom', label: 'Custom interval' },
+  ].forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt.value;
+    o.textContent = opt.label;
+    repeatSelect.appendChild(o);
+  });
+
+  // Custom interval input (hidden by default)
+  const customInterval = document.createElement('input');
+  customInterval.type = 'number';
+  customInterval.min = '1';
+  customInterval.value = '1';
+  customInterval.placeholder = 'Every X days';
+  customInterval.className = 'day-todo-input';
+  customInterval.style.display = 'none';
+  customInterval.onmousedown = e => e.stopPropagation();
+
+  repeatSelect.onchange = () => {
+    customInterval.style.display = repeatSelect.value === 'custom' ? 'block' : 'none';
+    endSection.style.display = repeatSelect.value !== 'none' ? 'block' : 'none';
+  };
+
+  // End condition section (hidden by default)
+  const endSection = document.createElement('div');
+  endSection.style.display = 'none';
+
+  const endSelect = document.createElement('select');
+  endSelect.className = 'day-todo-input';
+  endSelect.onmousedown = e => e.stopPropagation();
+  [
+    { value: 'forever', label: 'Repeat forever' },
+    { value: 'date', label: 'End on date' },
+    { value: 'count', label: 'End after X times' },
+  ].forEach(opt => {
+    const o = document.createElement('option');
+    o.value = opt.value;
+    o.textContent = opt.label;
+    endSelect.appendChild(o);
+  });
+
+  const endDateInput = document.createElement('input');
+  endDateInput.type = 'date';
+  endDateInput.className = 'day-todo-input';
+  endDateInput.style.display = 'none';
+  endDateInput.onmousedown = e => e.stopPropagation();
+
+  const endCountInput = document.createElement('input');
+  endCountInput.type = 'number';
+  endCountInput.min = '1';
+  endCountInput.value = '10';
+  endCountInput.placeholder = 'Number of times';
+  endCountInput.className = 'day-todo-input';
+  endCountInput.style.display = 'none';
+  endCountInput.onmousedown = e => e.stopPropagation();
+
+  endSelect.onchange = () => {
+    endDateInput.style.display = endSelect.value === 'date' ? 'block' : 'none';
+    endCountInput.style.display = endSelect.value === 'count' ? 'block' : 'none';
+  };
+
+  endSection.appendChild(endSelect);
+  endSection.appendChild(endDateInput);
+  endSection.appendChild(endCountInput);
+
   const actions = document.createElement('div');
   actions.className = 'day-event-actions';
 
@@ -576,6 +794,7 @@ function openInlineEventForm(key, container) {
   saveBtn.onclick = async () => {
     const title = titleInput.value.trim();
     if (!title) return;
+
     const newEvent = {
       id: Date.now().toString(),
       title,
@@ -584,14 +803,25 @@ function openInlineEventForm(key, container) {
       type: typeSelect.value,
       notes: notesInput.value.trim()
     };
+
+    // Add recurrence if set
+    if (repeatSelect.value !== 'none') {
+      newEvent.recurrence = {
+        frequency: repeatSelect.value,
+        interval: repeatSelect.value === 'custom' ? parseInt(customInterval.value) || 1 : 1,
+        endType: endSelect.value,
+        endDate: endSelect.value === 'date' ? endDateInput.value : null,
+        endCount: endSelect.value === 'count' ? parseInt(endCountInput.value) || 10 : null,
+        exceptions: {}
+      };
+    }
+
     events.push(newEvent);
     await saveEvents();
 
-    // Push to Google Calendar if connected
-    if (googleConnected) {
+    if (googleConnected && !newEvent.recurrence) {
       const googleResult = await createGoogleEvent(newEvent);
       if (googleResult) {
-        // Store the Google ID on the local event for future edits/deletes
         newEvent.googleId = googleResult.id;
         await saveEvents();
       }
@@ -602,10 +832,14 @@ function openInlineEventForm(key, container) {
 
   actions.appendChild(cancelBtn);
   actions.appendChild(saveBtn);
+
   form.appendChild(titleInput);
   form.appendChild(timeInput);
   form.appendChild(typeSelect);
   form.appendChild(notesInput);
+  form.appendChild(repeatSelect);
+  form.appendChild(customInterval);
+  form.appendChild(endSection);
   form.appendChild(actions);
 
   const eventsSection = container.querySelector('.day-events-section');
