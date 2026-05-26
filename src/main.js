@@ -1115,10 +1115,10 @@ function loadTheme() {
 // ── Context menu ──────────────────────────────────────────────────────────────
 
 async function showContextMenu(x, y) {
-  // Remove any existing menu
   closeContextMenu();
 
-  const autostartOn = isAutostartEnabled();
+  const autostartOn = await isAutostartEnabled();
+  const alwaysOnTopOn = await isAlwaysOnTop();
   const currentTheme = localStorage.getItem('calendar_theme') || 'default';
 
   const menu = document.createElement('div');
@@ -1135,8 +1135,8 @@ async function showContextMenu(x, y) {
 
   const themeOptions = [
     { id: 'default', label: 'Default', color: '#FAF7F2', border: '#ccc' },
-    { id: 'dark', label: 'Dark', color: '#1e1e2e', border: '#444' },
-    { id: 'warm', label: 'Warm', color: '#F9F5D7', border: '#665C54' },
+    { id: 'dark', label: 'Gruvbox Dark', color: '#282828', border: '#A89984' },
+    { id: 'warm', label: 'Gruvbox Light', color: '#F9F5D7', border: '#665C54' },
     { id: 'cool', label: 'Cool', color: '#F0F4FA', border: '#6a9ad4' },
   ];
 
@@ -1166,7 +1166,6 @@ async function showContextMenu(x, y) {
   settingsLabel.textContent = 'Settings';
   menu.appendChild(settingsLabel);
 
-  // Autostart toggle
   const autostartItem = document.createElement('div');
   autostartItem.className = 'context-menu-item';
   autostartItem.innerHTML = `
@@ -1174,17 +1173,12 @@ async function showContextMenu(x, y) {
     ${autostartOn ? '<span class="check">✓</span>' : ''}
   `;
   autostartItem.onclick = async () => {
-    if (autostartOn) {
-      disableAutostart();
-    } else {
-      enableAutostart();
-    }
+    if (autostartOn) await disableAutostart();
+    else await enableAutostart();
     closeContextMenu();
   };
   menu.appendChild(autostartItem);
 
-  // Always on top toggle
-  const alwaysOnTopOn = isAlwaysOnTop();
   const alwaysOnTopItem = document.createElement('div');
   alwaysOnTopItem.className = 'context-menu-item';
   alwaysOnTopItem.innerHTML = `
@@ -1192,7 +1186,7 @@ async function showContextMenu(x, y) {
     ${alwaysOnTopOn ? '<span class="check">✓</span>' : ''}
   `;
   alwaysOnTopItem.onclick = async () => {
-    setAlwaysOnTop(!alwaysOnTopOn);
+    await setAlwaysOnTop(!alwaysOnTopOn);
     closeContextMenu();
   };
   menu.appendChild(alwaysOnTopItem);
@@ -1201,7 +1195,6 @@ async function showContextMenu(x, y) {
   menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
 
   // Google Calendar section
-
   const googleLabel = document.createElement('div');
   googleLabel.className = 'context-menu-label';
   googleLabel.textContent = 'Google Calendar';
@@ -1281,10 +1274,13 @@ async function showContextMenu(x, y) {
     menu.appendChild(item);
   });
 
+  // Divider
+  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
+
   // About
   const aboutItem = document.createElement('div');
   aboutItem.className = 'context-menu-item';
-  aboutItem.innerHTML = '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.1.0</span>';
+  aboutItem.innerHTML = '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.2.0</span>';
   aboutItem.onclick = () => closeContextMenu();
   menu.appendChild(aboutItem);
 
@@ -1294,13 +1290,35 @@ async function showContextMenu(x, y) {
   closeItem.textContent = 'Close';
   closeItem.onclick = async () => {
     if (window.__TAURI__) {
-      window.__TAURI__.window.getCurrentWindow().close();
+      await window.__TAURI__.window.getCurrentWindow().close();
     }
   };
   menu.appendChild(closeItem);
 
-  document.body.appendChild(menu);
   document.getElementById('widget').appendChild(menu);
+
+  // Smart positioning
+  requestAnimationFrame(() => {
+    const menuRect = menu.getBoundingClientRect();
+    const widgetRect = document.getElementById('widget').getBoundingClientRect();
+    
+    let newTop = y;
+    let newLeft = x;
+
+    if (menuRect.bottom > widgetRect.bottom) {
+      newTop = y - menu.offsetHeight;
+    }
+    if (menuRect.right > widgetRect.right) {
+      newLeft = x - menu.offsetWidth;
+    }
+    
+    // Don't let it go above the top of the widget
+    if (newTop < 0) newTop = 0;
+    if (newLeft < 0) newLeft = 0;
+
+    menu.style.top = newTop + 'px';
+    menu.style.left = newLeft + 'px';
+  });
 
   // Close on click outside
   setTimeout(() => {
