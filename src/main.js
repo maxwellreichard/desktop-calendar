@@ -1253,6 +1253,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (viewMonth < 0) { viewMonth = 11; viewYear--; }
     renderCalendar();
     syncHolidays();
+    updateTodayBtn();
   };
 
   document.getElementById('next').onclick = () => {
@@ -1260,6 +1261,15 @@ window.addEventListener('DOMContentLoaded', () => {
     if (viewMonth > 11) { viewMonth = 0; viewYear++; }
     renderCalendar();
     syncHolidays();
+    updateTodayBtn();
+  };
+
+  document.getElementById('today-btn').onclick = () => {
+    viewYear = new Date().getFullYear();
+    viewMonth = new Date().getMonth();
+    renderCalendar();
+    syncHolidays();
+    updateTodayBtn();
   };
 
   document.getElementById('back-btn').onclick = () => switchToMonth();
@@ -1277,11 +1287,21 @@ window.addEventListener('DOMContentLoaded', () => {
     showContextMenu(e.clientX, e.clientY);
   });
 
+  function updateTodayBtn() {
+    const today = new Date();
+    const btn = document.getElementById('today-btn');
+    if (viewYear === today.getFullYear() && viewMonth === today.getMonth()) {
+      btn.style.display = 'none';
+    } else {
+      btn.style.display = 'block';
+  }
+}
   updateClock();
   setInterval(updateClock, 1000);
   initStorage().then(() => {
     renderCalendar();
     syncHolidays();
+    updateTodayBtn();
   });
   loadTheme();
   initGoogleCalendar();

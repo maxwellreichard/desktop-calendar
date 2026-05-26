@@ -310,6 +310,13 @@ body {
   text-align: right;
 }
 
+.nav {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
 .nav-btn {
   background: var(--bg-nav);
   border: 1px solid var(--border-nav);
@@ -322,6 +329,11 @@ body {
 
 .nav-btn:hover {
   background: var(--bg-cell-hover);
+}
+
+#today-btn {
+  font-size: 9px;
+  padding: 6px 10px;
 }
 
 .back-btn {
