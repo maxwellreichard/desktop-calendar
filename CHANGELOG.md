@@ -3,6 +3,28 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [0.4.0] - 2026-05-28
+
+### Added
+- **Recurring events** — daily, weekly, monthly, yearly, and custom interval patterns
+  - End conditions: forever, end on date, or end after X occurrences
+  - Edit/delete just this occurrence or all future occurrences
+- **Multi-day events** — set a start and end date on any event
+  - Shows `→` on start day and `←` on end day in month and week views
+  - Multi-day events appear at the top of the event list
+- **Today button** — appears in the nav when viewing a different month, jumps back to current month
+- **Holidays** — auto-populated federal holidays for US, Canada, UK, and Australia
+  - Toggle countries on/off from the right-click context menu
+  - Holidays appear at the bottom of the event list
+- **Gruvbox themes** — replaced Dark and Warm themes with Gruvbox Dark and Gruvbox Light Hard
+
+### Fixed
+- Context menu now uses smart positioning to avoid clipping at window edges
+- Context menu now respects the active theme
+- Event pill truncation in month view
+- Google Calendar event pills now theme-aware in dark mode
+
+---
 
 ## [0.2.0] - 2026-05-21
 
