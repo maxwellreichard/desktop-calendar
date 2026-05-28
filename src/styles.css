@@ -534,6 +534,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  position: relative;
 }
 
 .week-day-header {
@@ -601,6 +602,65 @@ body {
 .week-notes::placeholder {
   color: var(--text-tertiary);
 }
+
+.week-view-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.week-multiday-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0;
+  min-height: 0;
+  margin-bottom: 4px;
+}
+
+.week-multiday-span {
+  box-sizing: border-box;
+  padding: 2px 6px;
+  font-size: 9px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-weight: 500;
+  height: 18px;
+  line-height: 14px;
+  border: none;
+  flex-shrink: 0;
+}
+
+.week-multiday-span.empty {
+  background: transparent;
+  pointer-events: none;
+}
+
+.week-multiday-overlay {
+  position: absolute;
+  height: 18px;
+  line-height: 14px;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: 500;
+  border-radius: 4px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.week-multiday-overlay.personal { background: var(--pill-personal-bg); color: var(--pill-personal-color); border: 1px solid var(--pill-personal-border); }
+.week-multiday-overlay.work { background: var(--pill-work-bg); color: var(--pill-work-color); border: 1px solid var(--pill-work-border); }
+.week-multiday-overlay.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); border: 1px solid var(--pill-reminder-border); }
+.week-multiday-overlay.google { background: var(--pill-google-bg); color: var(--pill-google-color); border: 1px solid var(--pill-google-border); }
+
+.week-multiday-span.personal { background: #C4B0FF; color: #1a1a1a; }
+.week-multiday-span.work { background: #80FFCC; color: #1a1a1a; }
+.week-multiday-span.reminder { background: #FABD2F; color: #1a1a1a; }
+.week-multiday-span.google { background: #83A598; color: #1a1a1a; }
+.week-multiday-span.empty { background: transparent; pointer-events: none; }
 
 /* Day view */
 .day-view-container {

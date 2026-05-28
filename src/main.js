@@ -80,13 +80,32 @@ function updateClock() {
   });
 }
 
+function updateTodayBtn() {
+  const today = new Date();
+  const btn = document.getElementById('today-btn');
+  if (viewYear === today.getFullYear() && viewMonth === today.getMonth()) {
+    btn.style.display = 'none';
+  } else {
+    btn.style.display = 'block';
+  }
+}
+
 function getEventsForDate(y, m, d) {
   const key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-  const local = events.filter(e => e.date === key && !e.recurrence);
+  const local = events.filter(e => {
+    if (e.recurrence) return false;
+    if (e.date === key) return true;
+    if (e.endDate && e.endDate >= key && e.date < key) return true;
+    return false;
+  });
   const recurring = monthRecurringEvents.filter(e => e.date === key);
   const google = googleEvents.filter(e => e.date === key);
   const holidays = holidayEvents.filter(e => e.date === key);
-  return [...local, ...recurring, ...google, ...holidays];
+
+  // Multi-day first, then regular, then holidays last
+  const multiDay = local.filter(e => e.endDate);
+  const regular = [...local.filter(e => !e.endDate), ...recurring, ...google];
+  return [...multiDay, ...regular, ...holidays];
 }
 
 function dateKey(y, m, d) {
@@ -235,7 +254,16 @@ function renderCalendar() {
       evs.slice(0, 2).forEach(ev => {
         const pill = document.createElement('div');
         pill.className = 'event-pill ' + (ev.type || 'personal');
-        pill.textContent = ev.title;
+  
+        let label = ev.title;
+        if (ev.endDate) {
+          const cellKey = dateKey(c.year, c.month, c.day);
+          if (ev.date === cellKey) label = ev.title + ' →';
+          else if (ev.endDate === cellKey) label = '← ' + ev.title;
+          else label = '— ' + ev.title + ' —';
+        }
+        
+        pill.textContent = label;
         cell.appendChild(pill);
       });
       if (evs.length > 2) {
@@ -261,20 +289,6 @@ function renderCalendar() {
   });
 }
 
-document.getElementById('prev').onclick = () => {
-  viewMonth--;
-  if (viewMonth < 0) { viewMonth = 11; viewYear--; }
-  renderCalendar();
-  syncHolidays();
-};
-
-document.getElementById('next').onclick = () => {
-  viewMonth++;
-  if (viewMonth > 11) { viewMonth = 0; viewYear++; }
-  renderCalendar();
-  syncHolidays();
-};
-
 // ── Week view ─────────────────────────────────────────────────────────────────
 
 function renderWeekView() {
@@ -282,12 +296,23 @@ function renderWeekView() {
   container.innerHTML = '';
   const today = new Date();
 
+  const wrapper = document.createElement('div');
+  wrapper.className = 'week-view-wrapper';
+
+  // Build date array for the week
+  const weekDates = [];
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(weekStartDate);
+    date.setDate(weekStartDate.getDate() + i);
+    weekDates.push(date);
+  }
+
+  // Main week grid
   const grid = document.createElement('div');
   grid.className = 'week-view-grid';
 
   for (let i = 0; i < 7; i++) {
-    const date = new Date(weekStartDate);
-    date.setDate(weekStartDate.getDate() + i);
+    const date = weekDates[i];
     const y = date.getFullYear();
     const m = date.getMonth();
     const d = date.getDate();
@@ -312,7 +337,7 @@ function renderWeekView() {
         dayViewDate = new Date(y, m, d);
         switchToDay();
       }
-    }
+    };
     col.appendChild(dayNum);
 
     const eventsDiv = document.createElement('div');
@@ -320,7 +345,14 @@ function renderWeekView() {
     getEventsForDate(y, m, d).forEach(ev => {
       const pill = document.createElement('div');
       pill.className = 'event-pill ' + (ev.type || 'personal');
-      pill.textContent = ev.title;
+      if (ev.endDate) {
+        const cellKey = dateKey(y, m, d);
+        if (ev.date === cellKey) pill.textContent = ev.title + ' →';
+        else if (ev.endDate === cellKey) pill.textContent = '← ' + ev.title;
+        else pill.textContent = '— ' + ev.title;
+      } else {
+        pill.textContent = ev.title;
+      }
       eventsDiv.appendChild(pill);
     });
     col.appendChild(eventsDiv);
@@ -339,7 +371,8 @@ function renderWeekView() {
     grid.appendChild(col);
   }
 
-  container.appendChild(grid);
+  wrapper.appendChild(grid);
+  container.appendChild(wrapper);
 
   const endDate = new Date(weekStartDate);
   endDate.setDate(weekStartDate.getDate() + 6);
@@ -541,6 +574,7 @@ function toggleEventExpand(pill, ev, key) {
 
   const expanded = document.createElement('div');
   expanded.className = 'day-event-expanded';
+  expanded.onclick = e => e.stopPropagation();
 
   const titleInput = document.createElement('input');
   titleInput.type = 'text';
@@ -552,6 +586,11 @@ function toggleEventExpand(pill, ev, key) {
   timeInput.type = 'time';
   timeInput.value = ev.time || '';
   timeInput.onmousedown = e => e.stopPropagation();
+
+  const endDateExpandInput = document.createElement('input');
+  endDateExpandInput.type = 'date';
+  endDateExpandInput.value = ev.endDate || '';
+  endDateExpandInput.onmousedown = e => e.stopPropagation();
 
   const typeSelect = document.createElement('select');
   ['personal', 'work', 'reminder'].forEach(t => {
@@ -642,6 +681,7 @@ function toggleEventExpand(pill, ev, key) {
           ...events[idx],
           title: titleInput.value.trim(),
           time: timeInput.value,
+          endDate: endDateExpandInput.value || null,
           type: typeSelect.value,
           notes: notesInput.value.trim()
         };
@@ -658,6 +698,7 @@ function toggleEventExpand(pill, ev, key) {
   actions.appendChild(saveBtn);
   expanded.appendChild(titleInput);
   expanded.appendChild(timeInput);
+  expanded.appendChild(endDateExpandInput);
   expanded.appendChild(typeSelect);
   expanded.appendChild(notesInput);
   expanded.appendChild(actions);
@@ -683,6 +724,12 @@ function openInlineEventForm(key, container) {
   timeInput.type = 'time';
   timeInput.className = 'day-todo-input';
   timeInput.onmousedown = e => e.stopPropagation();
+
+  const multiDayEndInput = document.createElement('input');
+  multiDayEndInput.type = 'date';
+  multiDayEndInput.className = 'day-todo-input';
+  multiDayEndInput.placeholder = 'End date (optional)';
+  multiDayEndInput.onmousedown = e => e.stopPropagation();
 
   const typeSelect = document.createElement('select');
   typeSelect.className = 'day-todo-input';
@@ -795,14 +842,15 @@ function openInlineEventForm(key, container) {
     const title = titleInput.value.trim();
     if (!title) return;
 
-    const newEvent = {
-      id: Date.now().toString(),
-      title,
-      date: key,
-      time: timeInput.value,
-      type: typeSelect.value,
-      notes: notesInput.value.trim()
-    };
+  const newEvent = {
+    id: Date.now().toString(),
+    title,
+    date: key,
+    endDate: multiDayEndInput.value || null,
+    time: timeInput.value,
+    type: typeSelect.value,
+    notes: notesInput.value.trim()
+  };
 
     // Add recurrence if set
     if (repeatSelect.value !== 'none') {
@@ -835,6 +883,7 @@ function openInlineEventForm(key, container) {
 
   form.appendChild(titleInput);
   form.appendChild(timeInput);
+  form.appendChild(multiDayEndInput);
   form.appendChild(typeSelect);
   form.appendChild(notesInput);
   form.appendChild(repeatSelect);
@@ -1287,15 +1336,6 @@ window.addEventListener('DOMContentLoaded', () => {
     showContextMenu(e.clientX, e.clientY);
   });
 
-  function updateTodayBtn() {
-    const today = new Date();
-    const btn = document.getElementById('today-btn');
-    if (viewYear === today.getFullYear() && viewMonth === today.getMonth()) {
-      btn.style.display = 'none';
-    } else {
-      btn.style.display = 'block';
-  }
-}
   updateClock();
   setInterval(updateClock, 1000);
   initStorage().then(() => {
