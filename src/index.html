@@ -14,7 +14,10 @@
       <div class="header">
         <div>
           <div class="clock" id="clock">00:00</div>
-          <div class="clock-date" id="clock-date"></div>
+          <div class="clock-date-row">
+            <div class="clock-date" id="clock-date"></div>
+            <div class="weather-display" id="weather-display" style="display:none"></div>
+          </div>
         </div>
         <div class="header-right">
           <div class="month-label" id="month-label"></div>
@@ -43,6 +46,7 @@
     <div id="modal-container"></div>
     <script src="/config.js"></script>
     <script src="/holidays.js"></script>
+    <script src="/weather-icons.js"></script>
     <script src="/main.js"></script>
   </body>
 </html>

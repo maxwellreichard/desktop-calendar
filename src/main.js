@@ -2,6 +2,7 @@
 let googleEvents = [];
 let googleConnected = false;
 
+// Root
 let events = [];
 let notes = {};
 let todos = {};
@@ -12,9 +13,12 @@ let weekStartDate = null;
 let dayViewDate = null;
 let editingId = null;
 let expandedEventId = null;
+let clockSettings = JSON.parse(localStorage.getItem('clock_settings') || '{"format": "24h"}');
 
+// Recurring
 let monthRecurringEvents = [];
 
+// Holidays
 let holidayEvents = [];
 let selectedCountries = JSON.parse(localStorage.getItem('selected_countries') || '[]');
 
@@ -72,44 +76,96 @@ async function saveTodos() {
 
 function updateClock() {
   const now = new Date();
-  const h = String(now.getHours()).padStart(2, '0');
-  const m = String(now.getMinutes()).padStart(2, '0');
-  document.getElementById('clock').textContent = h + ':' + m;
+  let hours, minutes;
+  minutes = String(now.getMinutes()).padStart(2, '0');
+  
+  if (clockSettings.format === '12h') {
+    hours = now.getHours() % 12 || 12;
+    const ampm = now.getHours() >= 12 ? 'PM' : 'AM';
+    document.getElementById('clock').textContent = `${hours}:${minutes} ${ampm}`;
+  } else {
+    hours = String(now.getHours()).padStart(2, '0');
+    document.getElementById('clock').textContent = `${hours}:${minutes}`;
+  }
+
   document.getElementById('clock-date').textContent = now.toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
   });
 }
 
-function updateTodayBtn() {
-  const today = new Date();
-  const btn = document.getElementById('today-btn');
-  if (viewYear === today.getFullYear() && viewMonth === today.getMonth()) {
-    btn.style.display = 'none';
-  } else {
-    btn.style.display = 'block';
+// ── Weather ───────────────────────────────────────────────────────────────────
+let weatherData = null;
+let weatherSettings = JSON.parse(localStorage.getItem('weather_settings') || '{"enabled": false, "location": "", "units": "F"}');
+
+function updateWeatherDisplay() {
+  const el = document.getElementById('weather-display');
+  if (!el) return;
+
+  if (!weatherSettings.enabled || !weatherData) {
+    el.innerHTML = '';
+    el.style.display = 'none';
+    return;
+  }
+
+  try {
+    const current = weatherData.current_condition[0];
+    const today = weatherData.weather[0];
+    const code = parseInt(current.weatherCode);
+    const icon = getWeatherIcon(code);
+
+    let temp, high, low;
+    if (weatherSettings.units === 'F') {
+      temp = current.temp_F + '°';
+      high = today.maxtempF + '°';
+      low = today.mintempF + '°';
+    } else {
+      temp = current.temp_C + '°';
+      high = today.maxtempC + '°';
+      low = today.mintempC + '°';
+    }
+
+    el.innerHTML = `
+      <span class="weather-icon">${icon}</span>
+      <span class="weather-temp">${temp}</span>
+      <span class="weather-sep">·</span>
+      <span class="weather-hl">H:${high} L:${low}</span>
+    `;
+    el.style.display = 'inline-flex';
+    el.style.alignItems = 'center';
+    el.style.gap = '3px';
+  } catch (e) {
+    el.innerHTML = '';
+    el.style.display = 'none';
   }
 }
 
-function getEventsForDate(y, m, d) {
-  const key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
-  const local = events.filter(e => {
-    if (e.recurrence) return false;
-    if (e.date === key) return true;
-    if (e.endDate && e.endDate >= key && e.date < key) return true;
-    return false;
-  });
-  const recurring = monthRecurringEvents.filter(e => e.date === key);
-  const google = googleEvents.filter(e => e.date === key);
-  const holidays = holidayEvents.filter(e => e.date === key);
+async function fetchWeather() {
+  if (!weatherSettings.enabled || !weatherSettings.location) return;
 
-  // Multi-day first, then regular, then holidays last
-  const multiDay = local.filter(e => e.endDate);
-  const regular = [...local.filter(e => !e.endDate), ...recurring, ...google];
-  return [...multiDay, ...regular, ...holidays];
+  const cached = localStorage.getItem('weather_cache');
+  if (cached) {
+    const { data, timestamp } = JSON.parse(cached);
+    if (Date.now() - timestamp < 30 * 60 * 1000) {
+      weatherData = data;
+      updateWeatherDisplay();
+      return;
+    }
+  }
+
+  try {
+    const response = await fetch(`https://wttr.in/${encodeURIComponent(weatherSettings.location)}?format=j1`);
+    if (!response.ok) return;
+    const data = await response.json();
+    weatherData = data;
+    localStorage.setItem('weather_cache', JSON.stringify({ data, timestamp: Date.now() }));
+    updateWeatherDisplay();
+  } catch (e) {
+    console.error('Weather fetch error:', e);
+  }
 }
 
-function dateKey(y, m, d) {
-  return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+function saveWeatherSettings() {
+  localStorage.setItem('weather_settings', JSON.stringify(weatherSettings));
 }
 
 // ── Recurrence ────────────────────────────────────────────────────────────────
@@ -193,6 +249,26 @@ function getRecurringOccurrences(event, year, month) {
   }
 
   return occurrences;
+}
+
+function dateKey(y, m, d) {
+  return y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+}
+
+function getEventsForDate(y, m, d) {
+  const key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  const local = events.filter(e => {
+    if (e.recurrence) return false;
+    if (e.date === key) return true;
+    if (e.endDate && e.endDate >= key && e.date < key) return true;
+    return false;
+  });
+  const recurring = monthRecurringEvents.filter(e => e.date === key);
+  const google = googleEvents.filter(e => e.date === key);
+  const holidays = holidayEvents.filter(e => e.date === key);
+  const multiDay = local.filter(e => e.endDate);
+  const regular = [...local.filter(e => !e.endDate), ...recurring, ...google];
+  return [...multiDay, ...regular, ...holidays];
 }
 
 function getAllEventsForMonth(year, month) {
@@ -1294,6 +1370,17 @@ async function syncGoogleEvents() {
   }
 }
 
+function updateTodayBtn() {
+  const today = new Date();
+  const btn = document.getElementById('today-btn');
+  if (!btn) return;
+  if (viewYear === today.getFullYear() && viewMonth === today.getMonth()) {
+    btn.style.display = 'none';
+  } else {
+    btn.style.display = 'block';
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 window.addEventListener('DOMContentLoaded', () => {
@@ -1345,8 +1432,11 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   loadTheme();
   initGoogleCalendar();
+  fetchWeather();
   setTimeout(() => restoreWindowPosition(), 100);
 });
+
+
 
 // ── Autostart ─────────────────────────────────────────────────────────────────
 
@@ -1485,6 +1575,20 @@ async function showContextMenu(x, y) {
   };
   menu.appendChild(alwaysOnTopItem);
 
+  const clockFormatItem = document.createElement('div');
+  clockFormatItem.className = 'context-menu-item';
+  clockFormatItem.innerHTML = `
+    <span>Clock format</span>
+    <span style="color:var(--text-tertiary);font-size:11px">${clockSettings.format === '24h' ? '24h' : '12h'}</span>
+  `;
+  clockFormatItem.onclick = () => {
+    clockSettings.format = clockSettings.format === '24h' ? '12h' : '24h';
+    localStorage.setItem('clock_settings', JSON.stringify(clockSettings));
+    updateClock();
+    closeContextMenu();
+  };
+  menu.appendChild(clockFormatItem);
+
   // Divider
   menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
 
@@ -1571,6 +1675,22 @@ async function showContextMenu(x, y) {
   // Divider
   menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
 
+  // Weather section
+  const weatherItem = document.createElement('div');
+  weatherItem.className = 'context-menu-item';
+  weatherItem.innerHTML = `
+    <span>Weather</span>
+    <span style="color:var(--text-tertiary); font-size:11px">›</span>
+  `;
+  weatherItem.onclick = (e) => {
+    e.stopPropagation();
+    showWeatherSubmenu(weatherItem);
+  };
+  menu.appendChild(weatherItem);
+
+  // Divider
+  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
+
   // About
   const aboutItem = document.createElement('div');
   aboutItem.className = 'context-menu-item';
@@ -1616,11 +1736,136 @@ async function showContextMenu(x, y) {
 
   // Close on click outside
   setTimeout(() => {
-    document.addEventListener('click', closeContextMenu, { once: true });
+    document.addEventListener('click', () => {
+      const sub = document.getElementById('weather-submenu');
+      if (sub) sub.remove();
+    }, { once: true });
   }, 50);
 }
 
 function closeContextMenu() {
   const existing = document.getElementById('context-menu');
   if (existing) existing.remove();
+  const subexisting = document.getElementById('weather-submenu');
+  if (subexisting) subexisting.remove();
+}
+
+function updateWeatherDisplay() {
+  const el = document.getElementById('weather-display');
+  if (!el) return;
+
+  if (!weatherSettings.enabled || !weatherData) {
+    el.innerHTML = '';
+    el.style.display = 'none';
+    return;
+  }
+
+  try {
+    const current = weatherData.current_condition[0];
+    const today = weatherData.weather[0];
+    const code = parseInt(current.weatherCode);
+    const icon = getWeatherIcon(code);
+
+    let temp, high, low;
+    if (weatherSettings.units === 'F') {
+      temp = current.temp_F + '°';
+      high = today.maxtempF + '°';
+      low = today.mintempF + '°';
+    } else {
+      temp = current.temp_C + '°';
+      high = today.maxtempC + '°';
+      low = today.mintempC + '°';
+    }
+
+    el.innerHTML = `
+      <span class="weather-icon">${icon}</span>
+      <span class="weather-temp">${temp}</span>
+      <span class="weather-sep">·</span>
+      <span class="weather-hl">${high} | ${low}</span>
+    `;
+    el.style.display = 'inline-flex';
+    el.style.alignItems = 'center';
+    el.style.gap = '3px';
+  } catch (e) {
+    el.innerHTML = '';
+    el.style.display = 'none';
+  }
+}
+
+function showWeatherSubmenu(anchor) {
+  const existing = document.getElementById('weather-submenu');
+  if (existing) { existing.remove(); return; }
+
+  const submenu = document.createElement('div');
+  submenu.className = 'context-menu';
+  submenu.id = 'weather-submenu';
+  submenu.onclick = e => e.stopPropagation();
+
+  const enableItem = document.createElement('div');
+  enableItem.className = 'context-menu-item';
+  enableItem.innerHTML = `
+    <span>Show weather</span>
+    ${weatherSettings.enabled ? '<span class="check">✓</span>' : ''}
+  `;
+  enableItem.onclick = () => {
+    weatherSettings.enabled = !weatherSettings.enabled;
+    saveWeatherSettings();
+    if (weatherSettings.enabled) fetchWeather();
+    else updateWeatherDisplay();
+    closeContextMenu();
+  };
+  submenu.appendChild(enableItem);
+
+  const unitsItem = document.createElement('div');
+  unitsItem.className = 'context-menu-item';
+  unitsItem.innerHTML = `
+    <span>Units</span>
+    <span style="color:var(--text-tertiary);font-size:11px">${weatherSettings.units === 'F' ? '°F' : '°C'}</span>
+  `;
+  unitsItem.onclick = () => {
+    weatherSettings.units = weatherSettings.units === 'F' ? 'C' : 'F';
+    saveWeatherSettings();
+    localStorage.removeItem('weather_cache');
+    fetchWeather();
+    closeContextMenu();
+  };
+  submenu.appendChild(unitsItem);
+
+  const locationLabel = document.createElement('div');
+  locationLabel.className = 'context-menu-label';
+  locationLabel.textContent = 'Location';
+  submenu.appendChild(locationLabel);
+
+  const locationWrapper = document.createElement('div');
+  locationWrapper.style.padding = '4px 10px';
+  locationWrapper.onclick = e => e.stopPropagation();
+
+  const locationInput = document.createElement('input');
+  locationInput.type = 'text';
+  locationInput.value = weatherSettings.location;
+  locationInput.placeholder = 'City or zip code';
+  locationInput.className = 'day-todo-input';
+  locationInput.style.fontSize = '11px';
+  locationInput.onmousedown = e => e.stopPropagation();
+  locationInput.onclick = e => e.stopPropagation();
+  locationInput.onkeydown = (e) => {
+    if (e.key === 'Enter') {
+      weatherSettings.location = locationInput.value.trim();
+      saveWeatherSettings();
+      localStorage.removeItem('weather_cache');
+      fetchWeather();
+      closeContextMenu();
+    }
+  };
+  locationWrapper.appendChild(locationInput);
+  submenu.appendChild(locationWrapper);
+
+  const anchorRect = anchor.getBoundingClientRect();
+  const widgetRect = document.getElementById('widget').getBoundingClientRect();
+  submenu.style.position = 'absolute';
+  submenu.style.top = (anchorRect.top - widgetRect.top) + 'px';
+  submenu.style.left = (anchorRect.left - widgetRect.left - 180) + 'px';
+
+  document.getElementById('widget').appendChild(submenu);
+  setTimeout(() => locationInput.focus(), 50);
 }
