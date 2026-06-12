@@ -468,6 +468,16 @@ body {
   opacity: 0.3;
 }
 
+.day-cell.range-start {
+  background: var(--bg-cell-today);
+  border-color: var(--border-today);
+}
+
+.day-cell.in-range {
+  background: var(--accent-light);
+  border-color: var(--accent-border);
+}
+
 .day-num {
   font-size: 11px;
   color: var(--text-cell);
@@ -538,7 +548,8 @@ body {
 .week-view-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 6px;
+  column-gap: 6px;
+  row-gap: 4px;
   margin-bottom: 12px;
 }
 
@@ -592,7 +603,6 @@ body {
 }
 
 .week-notes {
-  flex: 1;
   min-height: 120px;
   background: var(--bg-week-notes);
   border: 1px solid var(--border-cell);
@@ -621,58 +631,34 @@ body {
   gap: 4px;
 }
 
-.week-multiday-row {
+.week-multiday-banner {
+  grid-column: 1 / 8;
   display: grid;
   grid-template-columns: repeat(7, 1fr);
-  gap: 0;
-  min-height: 0;
-  margin-bottom: 4px;
+  column-gap: 6px;
+  row-gap: 4px;
 }
 
-.week-multiday-span {
-  box-sizing: border-box;
-  padding: 2px 6px;
-  font-size: 9px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  font-weight: 500;
-  height: 18px;
-  line-height: 14px;
-  border: none;
-  flex-shrink: 0;
-}
-
-.week-multiday-span.empty {
-  background: transparent;
-  pointer-events: none;
-}
-
-.week-multiday-overlay {
-  position: absolute;
-  height: 18px;
-  line-height: 14px;
-  padding: 2px 6px;
-  font-size: 9px;
-  font-weight: 500;
+.week-multiday-bar {
+  height: 20px;
   border-radius: 4px;
+  padding: 0 8px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 20px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-  z-index: 2;
-  pointer-events: none;
+  cursor: pointer;
 }
 
-.week-multiday-overlay.personal { background: var(--pill-personal-bg); color: var(--pill-personal-color); border: 1px solid var(--pill-personal-border); }
-.week-multiday-overlay.work { background: var(--pill-work-bg); color: var(--pill-work-color); border: 1px solid var(--pill-work-border); }
-.week-multiday-overlay.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); border: 1px solid var(--pill-reminder-border); }
-.week-multiday-overlay.google { background: var(--pill-google-bg); color: var(--pill-google-color); border: 1px solid var(--pill-google-border); }
+.week-multiday-bar.personal { background: var(--pill-personal-bg); color: var(--pill-personal-color); border: 1px solid var(--pill-personal-border); }
+.week-multiday-bar.work { background: var(--pill-work-bg); color: var(--pill-work-color); border: 1px solid var(--pill-work-border); }
+.week-multiday-bar.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); border: 1px solid var(--pill-reminder-border); }
+.week-multiday-bar.google { background: var(--pill-google-bg); color: var(--pill-google-color); border: 1px solid var(--pill-google-border); }
 
-.week-multiday-span.personal { background: #C4B0FF; color: #1a1a1a; }
-.week-multiday-span.work { background: #80FFCC; color: #1a1a1a; }
-.week-multiday-span.reminder { background: #FABD2F; color: #1a1a1a; }
-.week-multiday-span.google { background: #83A598; color: #1a1a1a; }
-.week-multiday-span.empty { background: transparent; pointer-events: none; }
+.week-multiday-bar.continues-left { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.week-multiday-bar.continues-right { border-top-right-radius: 0; border-bottom-right-radius: 0; }
 
 /* Day view */
 .day-view-container {
@@ -824,29 +810,6 @@ body {
   gap: 6px;
 }
 
-.day-event-pill {
-  border-radius: 6px;
-  padding: 5px 8px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.event-pill.personal { background: var(--pill-personal-bg); color: var(--pill-personal-color); }
-.event-pill.work { background: var(--pill-work-bg); color: var(--pill-work-color); }
-.event-pill.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); }
-
-.day-event-pill.personal { background: var(--pill-personal-bg); border: 1px solid var(--pill-personal-border); }
-.day-event-pill.work { background: var(--pill-work-bg); border: 1px solid var(--pill-work-border); }
-.day-event-pill.reminder { background: var(--pill-reminder-bg); border: 1px solid var(--pill-reminder-border); }
-
-.day-event-pill.personal .day-event-title { color: var(--pill-personal-color); }
-.day-event-pill.work .day-event-title { color: var(--pill-work-color); }
-.day-event-pill.reminder .day-event-title { color: var(--pill-reminder-color); }
-
-.day-event-pill.personal .day-event-time { color: var(--pill-personal-time); }
-.day-event-pill.work .day-event-time { color: var(--pill-work-time); }
-.day-event-pill.reminder .day-event-time { color: var(--pill-reminder-time); }
-
 .day-event-pill-header {
   display: flex;
   justify-content: space-between;
@@ -942,6 +905,99 @@ body {
 
 .day-notes-textarea::placeholder {
   color: rgba(0, 0, 0, 0.25);
+}
+
+/* Mini calendar view */
+.mini-cal-container {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px 16px;
+  height: 100%;
+}
+
+.mini-cal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.mini-cal-title {
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--text-primary);
+}
+
+.mini-cal-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.mini-cal-btn {
+  background: var(--bg-nav);
+  border: 1px solid var(--border-nav);
+  border-radius: 6px;
+  color: var(--text-nav);
+  font-size: 12px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.mini-cal-btn:hover {
+  background: var(--bg-cell-hover);
+}
+
+.mini-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  grid-template-rows: auto repeat(6, 1fr);
+}
+
+.mini-cal-day-header {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 4px 0 6px;
+  text-transform: uppercase;
+}
+
+.mini-cal-cell {
+  position: relative;
+  width: 100%;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 12px;
+  color: var(--text-cell);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mini-cal-cell:hover {
+  background: var(--bg-cell-hover);
+}
+
+.mini-cal-cell:hover span {
+  background: var(--bg-cell-hover);
+}
+
+.mini-cal-cell.today {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+}
+
+.mini-cal-cell.today span {
+  background: var(--accent);
+  color: #fff;
+}
+
+.mini-cal-cell.other-month {
+  color: var(--text-tertiary);
+  opacity: 0.4;
 }
 
 /* Modal - kept for any future use but hidden by default */

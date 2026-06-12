@@ -13,6 +13,8 @@ let weekStartDate = null;
 let dayViewDate = null;
 let editingId = null;
 let expandedEventId = null;
+let pendingExpandEventId = null;
+let rangeSelectStart = null;
 let clockSettings = JSON.parse(localStorage.getItem('clock_settings') || '{"format": "24h"}');
 
 // Recurring
@@ -34,22 +36,6 @@ async function initStorage() {
     events = [];
     notes = {};
     todos = {};
-  }
-}
-
-async function initGoogleCalendar() {
-  googleConnected = isGoogleConnected();
-  if (googleConnected) {
-    await syncGoogleEvents();
-  }
-}
-
-async function syncGoogleEvents() {
-  try {
-    googleEvents = await fetchGoogleEvents(viewYear, viewMonth);
-    renderCalendar();
-  } catch (e) {
-    console.error('Google sync error:', e);
   }
 }
 
@@ -96,48 +82,6 @@ function updateClock() {
 // ── Weather ───────────────────────────────────────────────────────────────────
 let weatherData = null;
 let weatherSettings = JSON.parse(localStorage.getItem('weather_settings') || '{"enabled": false, "location": "", "units": "F"}');
-
-function updateWeatherDisplay() {
-  const el = document.getElementById('weather-display');
-  if (!el) return;
-
-  if (!weatherSettings.enabled || !weatherData) {
-    el.innerHTML = '';
-    el.style.display = 'none';
-    return;
-  }
-
-  try {
-    const current = weatherData.current_condition[0];
-    const today = weatherData.weather[0];
-    const code = parseInt(current.weatherCode);
-    const icon = getWeatherIcon(code);
-
-    let temp, high, low;
-    if (weatherSettings.units === 'F') {
-      temp = current.temp_F + '°';
-      high = today.maxtempF + '°';
-      low = today.mintempF + '°';
-    } else {
-      temp = current.temp_C + '°';
-      high = today.maxtempC + '°';
-      low = today.mintempC + '°';
-    }
-
-    el.innerHTML = `
-      <span class="weather-icon">${icon}</span>
-      <span class="weather-temp">${temp}</span>
-      <span class="weather-sep">·</span>
-      <span class="weather-hl">H:${high} L:${low}</span>
-    `;
-    el.style.display = 'inline-flex';
-    el.style.alignItems = 'center';
-    el.style.gap = '3px';
-  } catch (e) {
-    el.innerHTML = '';
-    el.style.display = 'none';
-  }
-}
 
 async function fetchWeather() {
   if (!weatherSettings.enabled || !weatherSettings.location) return;
@@ -256,7 +200,7 @@ function dateKey(y, m, d) {
 }
 
 function getEventsForDate(y, m, d) {
-  const key = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+  const key = dateKey(y, m, d);
   const local = events.filter(e => {
     if (e.recurrence) return false;
     if (e.date === key) return true;
@@ -326,20 +270,13 @@ function renderCalendar() {
     cell.appendChild(numDiv);
 
     if (!c.other) {
+      const cellKey = dateKey(c.year, c.month, c.day);
+      cell.dataset.date = cellKey;
       const evs = getEventsForDate(c.year, c.month, c.day);
       evs.slice(0, 2).forEach(ev => {
         const pill = document.createElement('div');
         pill.className = 'event-pill ' + (ev.type || 'personal');
-  
-        let label = ev.title;
-        if (ev.endDate) {
-          const cellKey = dateKey(c.year, c.month, c.day);
-          if (ev.date === cellKey) label = ev.title + ' →';
-          else if (ev.endDate === cellKey) label = '← ' + ev.title;
-          else label = '— ' + ev.title + ' —';
-        }
-        
-        pill.textContent = label;
+        pill.textContent = (!ev.endDate || ev.date === cellKey) ? ev.title : ' ';
         cell.appendChild(pill);
       });
       if (evs.length > 2) {
@@ -349,20 +286,141 @@ function renderCalendar() {
         cell.appendChild(more);
       }
       cell.onclick = (e) => {
+        const cellKey = dateKey(c.year, c.month, c.day);
         if (e.shiftKey) {
-          dayViewDate = new Date(c.year, c.month, c.day);
-          switchToDay();
+          if (!rangeSelectStart) {
+            rangeSelectStart = cellKey;
+            updateRangeHighlight(cellKey, cellKey);
+          } else {
+            const start = rangeSelectStart <= cellKey ? rangeSelectStart : cellKey;
+            const end   = rangeSelectStart <= cellKey ? cellKey : rangeSelectStart;
+            rangeSelectStart = null;
+            clearRangeHighlight();
+            openRangeEventModal(start, end);
+          }
         } else {
+          rangeSelectStart = null;
+          clearRangeHighlight();
           weekStartDate = new Date(c.year, c.month, c.day);
           const dayOfWeek = weekStartDate.getDay();
           weekStartDate.setDate(weekStartDate.getDate() - dayOfWeek);
           switchToWeek();
         }
       };
+      cell.onmouseover = () => {
+        if (rangeSelectStart) updateRangeHighlight(rangeSelectStart, dateKey(c.year, c.month, c.day));
+      };
     }
 
     grid.appendChild(cell);
   });
+}
+
+// ── Month view range selection ────────────────────────────────────────────────
+
+function updateRangeHighlight(startKey, hoverKey) {
+  const lo = startKey <= hoverKey ? startKey : hoverKey;
+  const hi = startKey <= hoverKey ? hoverKey : startKey;
+  document.querySelectorAll('.day-cell[data-date]').forEach(cell => {
+    const d = cell.dataset.date;
+    cell.classList.toggle('range-start', d === rangeSelectStart);
+    cell.classList.toggle('in-range', d !== rangeSelectStart && d >= lo && d <= hi);
+  });
+}
+
+function clearRangeHighlight() {
+  document.querySelectorAll('.day-cell[data-date]').forEach(cell => {
+    cell.classList.remove('range-start', 'in-range');
+  });
+}
+
+function openRangeEventModal(startKey, endKey) {
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.onclick = e => e.stopPropagation();
+
+  const heading = document.createElement('h3');
+  heading.textContent = 'New Event';
+  modal.appendChild(heading);
+
+  const dateInfo = document.createElement('div');
+  dateInfo.style.cssText = 'font-size:11px;color:var(--text-secondary);margin-bottom:10px;';
+  const sDate = new Date(startKey + 'T00:00:00');
+  const eDate = new Date(endKey + 'T00:00:00');
+  const fmt = { month: 'short', day: 'numeric' };
+  dateInfo.textContent = startKey === endKey
+    ? sDate.toLocaleDateString('en-US', { ...fmt, year: 'numeric' })
+    : `${sDate.toLocaleDateString('en-US', fmt)} – ${eDate.toLocaleDateString('en-US', { ...fmt, year: 'numeric' })}`;
+  modal.appendChild(dateInfo);
+
+  const titleLabel = document.createElement('label');
+  titleLabel.textContent = 'Title';
+  modal.appendChild(titleLabel);
+
+  const titleInput = document.createElement('input');
+  titleInput.type = 'text';
+  titleInput.placeholder = 'Event title';
+  titleInput.onmousedown = e => e.stopPropagation();
+  modal.appendChild(titleInput);
+
+  const typeLabel = document.createElement('label');
+  typeLabel.textContent = 'Type';
+  modal.appendChild(typeLabel);
+
+  const typeSelect = document.createElement('select');
+  typeSelect.onmousedown = e => e.stopPropagation();
+  ['personal', 'work', 'reminder'].forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+    typeSelect.appendChild(opt);
+  });
+  modal.appendChild(typeSelect);
+
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onmousedown = e => e.stopPropagation();
+  cancelBtn.onclick = () => overlay.remove();
+
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'save-btn';
+  saveBtn.textContent = 'Save';
+  saveBtn.onmousedown = e => e.stopPropagation();
+  saveBtn.onclick = async () => {
+    const title = titleInput.value.trim();
+    if (!title) return;
+    events.push({
+      id: Date.now().toString(),
+      title,
+      date: startKey,
+      endDate: startKey === endKey ? null : endKey,
+      type: typeSelect.value
+    });
+    await saveEvents();
+    overlay.remove();
+    renderCalendar();
+    syncHolidays();
+  };
+
+  titleInput.onkeydown = (e) => {
+    if (e.key === 'Enter') saveBtn.click();
+    if (e.key === 'Escape') overlay.remove();
+  };
+
+  actions.appendChild(cancelBtn);
+  actions.appendChild(saveBtn);
+  modal.appendChild(actions);
+  overlay.appendChild(modal);
+
+  document.getElementById('widget').appendChild(overlay);
+  setTimeout(() => titleInput.focus(), 50);
 }
 
 // ── Week view ─────────────────────────────────────────────────────────────────
@@ -383,69 +441,109 @@ function renderWeekView() {
     weekDates.push(date);
   }
 
+  const weekStartKey = dateKey(weekDates[0].getFullYear(), weekDates[0].getMonth(), weekDates[0].getDate());
+  const weekEndKey = dateKey(weekDates[6].getFullYear(), weekDates[6].getMonth(), weekDates[6].getDate());
+
+  // Collect every event this week as a column span.
+  // Single-day events span 1 column; multi-day events span their range.
+  const allSpans = [];
+  const seen = new Set();
+  weekDates.forEach((date, colIndex) => {
+    const y = date.getFullYear(), m = date.getMonth(), d = date.getDate();
+    getEventsForDate(y, m, d).forEach(ev => {
+      if (seen.has(ev.id)) return;
+      seen.add(ev.id);
+
+      if (ev.endDate) {
+        let startCol = 0;
+        for (let i = 0; i < 7; i++) {
+          if (dateKey(weekDates[i].getFullYear(), weekDates[i].getMonth(), weekDates[i].getDate()) >= ev.date) {
+            startCol = i; break;
+          }
+        }
+        let endCol = 6;
+        for (let i = 6; i >= 0; i--) {
+          if (dateKey(weekDates[i].getFullYear(), weekDates[i].getMonth(), weekDates[i].getDate()) <= ev.endDate) {
+            endCol = i; break;
+          }
+        }
+        allSpans.push({ ev, startCol, endCol,
+          continuesLeft: ev.date < weekStartKey,
+          continuesRight: ev.endDate > weekEndKey
+        });
+      } else {
+        allSpans.push({ ev, startCol: colIndex, endCol: colIndex,
+          continuesLeft: false, continuesRight: false
+        });
+      }
+    });
+  });
+
+  // Longest-spanning events first so they claim top rows in the banner
+  allSpans.sort((a, b) => (b.endCol - b.startCol) - (a.endCol - a.startCol));
+
   // Main week grid
   const grid = document.createElement('div');
   grid.className = 'week-view-grid';
 
-  for (let i = 0; i < 7; i++) {
-    const date = weekDates[i];
-    const y = date.getFullYear();
-    const m = date.getMonth();
-    const d = date.getDate();
+  // Row 1: day name headers
+  weekDates.forEach(date => {
+    const y = date.getFullYear(), m = date.getMonth(), d = date.getDate();
     const isToday = d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
-    const key = dateKey(y, m, d);
+    const el = document.createElement('div');
+    el.className = 'week-day-header' + (isToday ? ' today' : '');
+    el.textContent = date.toLocaleDateString('en-US', { weekday: 'short' });
+    grid.appendChild(el);
+  });
 
-    const col = document.createElement('div');
-    col.className = 'week-day-col';
-
-    const dayHeader = document.createElement('div');
-    dayHeader.className = 'week-day-header' + (isToday ? ' today' : '');
-    dayHeader.textContent = date.toLocaleDateString('en-US', { weekday: 'short' });
-    col.appendChild(dayHeader);
-
-    const dayNum = document.createElement('div');
-    dayNum.className = 'week-day-num' + (isToday ? ' today' : '');
-    dayNum.textContent = d;
-    dayNum.style.cursor = 'pointer';
-    dayNum.title = 'Shift+click to open day view';
-    dayNum.onclick = (e) => {
-      if (e.shiftKey) {
-        dayViewDate = new Date(y, m, d);
-        switchToDay();
-      }
+  // Row 2: day numbers
+  weekDates.forEach(date => {
+    const y = date.getFullYear(), m = date.getMonth(), d = date.getDate();
+    const isToday = d === today.getDate() && m === today.getMonth() && y === today.getFullYear();
+    const el = document.createElement('div');
+    el.className = 'week-day-num' + (isToday ? ' today' : '');
+    el.textContent = d;
+    el.style.cursor = 'pointer';
+    el.title = 'Click to open day view';
+    el.onclick = (e) => {
+      if (!e.shiftKey) { dayViewDate = new Date(y, m, d); switchToDay(); }
     };
-    col.appendChild(dayNum);
+    grid.appendChild(el);
+  });
 
-    const eventsDiv = document.createElement('div');
-    eventsDiv.className = 'week-events';
-    getEventsForDate(y, m, d).forEach(ev => {
-      const pill = document.createElement('div');
-      pill.className = 'event-pill ' + (ev.type || 'personal');
-      if (ev.endDate) {
-        const cellKey = dateKey(y, m, d);
-        if (ev.date === cellKey) pill.textContent = ev.title + ' →';
-        else if (ev.endDate === cellKey) pill.textContent = '← ' + ev.title;
-        else pill.textContent = '— ' + ev.title;
-      } else {
-        pill.textContent = ev.title;
-      }
-      eventsDiv.appendChild(pill);
+  // Row 3 (conditional): unified event banner — all events as column-spanning bars
+  if (allSpans.length > 0) {
+    const banner = document.createElement('div');
+    banner.className = 'week-multiday-banner';
+    allSpans.forEach(({ ev, startCol, endCol, continuesLeft, continuesRight }) => {
+      const bar = document.createElement('div');
+      bar.className = 'week-multiday-bar ' + (ev.type || 'personal');
+      bar.style.gridColumn = `${startCol + 1} / ${endCol + 2}`;
+      bar.textContent = ev.title;
+      if (continuesLeft) bar.classList.add('continues-left');
+      if (continuesRight) bar.classList.add('continues-right');
+      bar.onclick = () => {
+        dayViewDate = new Date(ev.date + 'T00:00:00');
+        pendingExpandEventId = ev.id;
+        switchToDay();
+      };
+      banner.appendChild(bar);
     });
-    col.appendChild(eventsDiv);
+    grid.appendChild(banner);
+  }
 
+  // Next row: notes textareas per day
+  weekDates.forEach(date => {
+    const y = date.getFullYear(), m = date.getMonth(), d = date.getDate();
+    const key = dateKey(y, m, d);
     const textarea = document.createElement('textarea');
     textarea.className = 'week-notes';
     textarea.placeholder = 'Notes...';
     textarea.value = notes[key] || '';
-    textarea.oninput = () => {
-      notes[key] = textarea.value;
-      saveNotes();
-    };
+    textarea.oninput = () => { notes[key] = textarea.value; saveNotes(); };
     textarea.onmousedown = e => e.stopPropagation();
-    col.appendChild(textarea);
-
-    grid.appendChild(col);
-  }
+    grid.appendChild(textarea);
+  });
 
   wrapper.appendChild(grid);
   container.appendChild(wrapper);
@@ -551,6 +649,12 @@ function renderDayView() {
 
   document.getElementById('month-label').textContent =
     dayViewDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+
+  if (pendingExpandEventId) {
+    const pill = container.querySelector(`.day-event-pill[data-id="${pendingExpandEventId}"]`);
+    if (pill) pill.click();
+    pendingExpandEventId = null;
+  }
 }
 
 function createTodoItem(todo, idx, key, todoList) {
@@ -918,15 +1022,15 @@ function openInlineEventForm(key, container) {
     const title = titleInput.value.trim();
     if (!title) return;
 
-  const newEvent = {
-    id: Date.now().toString(),
-    title,
-    date: key,
-    endDate: multiDayEndInput.value || null,
-    time: timeInput.value,
-    type: typeSelect.value,
-    notes: notesInput.value.trim()
-  };
+    const newEvent = {
+      id: Date.now().toString(),
+      title,
+      date: key,
+      endDate: multiDayEndInput.value || null,
+      time: timeInput.value,
+      type: typeSelect.value,
+      notes: notesInput.value.trim()
+    };
 
     // Add recurrence if set
     if (repeatSelect.value !== 'none') {
@@ -975,7 +1079,7 @@ function openInlineEventForm(key, container) {
 // ── View switching ────────────────────────────────────────────────────────────
 
 function switchToWeek() {
-  console.log('switchToWeek called, currentView:', currentView, 'weekStartDate:', weekStartDate);
+  rangeSelectStart = null;
   const monthView = document.getElementById('month-view');
   const weekView = document.getElementById('week-view');
   const dayView = document.getElementById('day-view');
@@ -1036,15 +1140,13 @@ function switchToDay() {
 
   const fromWidth = weekStartDate ? 1024 : 460;
 
-setTimeout(() => {
+  setTimeout(() => {
     const viewContainer = document.querySelector('.view-container');
     viewContainer.style.height = 'auto';
     const contentHeight = document.getElementById('day-view').scrollHeight;
     const headerHeight = document.querySelector('.header').offsetHeight;
     const legendHeight = document.querySelector('.legend').offsetHeight;
     const totalHeight = contentHeight + headerHeight + legendHeight + 85;
-    console.log('day contentHeight:', contentHeight);
-    console.log('day totalHeight:', totalHeight);
     viewContainer.style.height = '';
     animateResize(fromWidth, 560, 80, totalHeight);
     setTimeout(() => {
@@ -1055,7 +1157,6 @@ setTimeout(() => {
 }
 
 function switchToMonth() {
-  console.log('switchToMonth called, currentView:', currentView);
   const monthView = document.getElementById('month-view');
   const weekView = document.getElementById('week-view');
   const dayView = document.getElementById('day-view');
@@ -1363,7 +1464,6 @@ async function initGoogleCalendar() {
 async function syncGoogleEvents() {
   try {
     googleEvents = await fetchGoogleEvents(viewYear, viewMonth);
-    console.log('Google events fetched:', googleEvents);
     renderCalendar();
   } catch (e) {
     console.error('Google sync error:', e);
@@ -1379,6 +1479,232 @@ function updateTodayBtn() {
   } else {
     btn.style.display = 'block';
   }
+}
+
+// ── Mini calendar ─────────────────────────────────────────────────────────────
+
+let miniYear = new Date().getFullYear();
+let miniMonth = new Date().getMonth();
+let miniCalActive = false;
+
+function renderMiniCalendar() {
+  const container = document.getElementById('mini-view');
+  container.innerHTML = '';
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'mini-cal-container';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'mini-cal-header';
+
+  const title = document.createElement('div');
+  title.className = 'mini-cal-title';
+  title.textContent = new Date(miniYear, miniMonth, 1)
+    .toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  const nav = document.createElement('div');
+  nav.className = 'mini-cal-nav';
+
+  const prevBtn = document.createElement('button');
+  prevBtn.className = 'mini-cal-btn';
+  prevBtn.textContent = '‹';
+  prevBtn.onmousedown = e => e.stopPropagation();
+  prevBtn.onclick = () => {
+    miniMonth--;
+    if (miniMonth < 0) { miniMonth = 11; miniYear--; }
+    renderMiniCalendar();
+  };
+
+  const todayBtn = document.createElement('button');
+  todayBtn.className = 'mini-cal-btn';
+  todayBtn.textContent = '⌃';
+  todayBtn.onmousedown = e => e.stopPropagation();
+  todayBtn.onclick = () => {
+    miniYear = new Date().getFullYear();
+    miniMonth = new Date().getMonth();
+    renderMiniCalendar();
+  };
+
+  const nextBtn = document.createElement('button');
+  nextBtn.className = 'mini-cal-btn';
+  nextBtn.textContent = '›';
+  nextBtn.onmousedown = e => e.stopPropagation();
+  nextBtn.onclick = () => {
+    miniMonth++;
+    if (miniMonth > 11) { miniMonth = 0; miniYear++; }
+    renderMiniCalendar();
+  };
+
+  nav.appendChild(prevBtn);
+  nav.appendChild(todayBtn);
+  nav.appendChild(nextBtn);
+  header.appendChild(title);
+  header.appendChild(nav);
+  wrapper.appendChild(header);
+
+  // Grid
+  const grid = document.createElement('div');
+  grid.className = 'mini-cal-grid';
+
+  ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(d => {
+    const h = document.createElement('div');
+    h.className = 'mini-cal-day-header';
+    h.textContent = d;
+    grid.appendChild(h);
+  });
+
+  const firstDay = new Date(miniYear, miniMonth, 1).getDay();
+  const daysInMonth = new Date(miniYear, miniMonth + 1, 0).getDate();
+  const daysInPrev = new Date(miniYear, miniMonth, 0).getDate();
+  const today = new Date();
+
+  // Build cells
+  let cells = [];
+
+  // Previous month padding
+  for (let i = firstDay - 1; i >= 0; i--) {
+    cells.push({
+      day: daysInPrev - i,
+      month: miniMonth - 1 < 0 ? 11 : miniMonth - 1,
+      year: miniMonth === 0 ? miniYear - 1 : miniYear,
+      other: true
+    });
+  }
+
+  // Current month days
+  for (let d = 1; d <= daysInMonth; d++) {
+    cells.push({ day: d, month: miniMonth, year: miniYear, other: false });
+  }
+
+  // Next month padding to complete the last row
+  let nextDay = 1;
+  while (cells.length % 7 !== 0) {
+    cells.push({
+      day: nextDay++,
+      month: miniMonth + 1 > 11 ? 0 : miniMonth + 1,
+      year: miniMonth === 11 ? miniYear + 1 : miniYear,
+      other: true
+    });
+  }
+
+  // Remove last row if ALL cells in it are other-month
+  if (cells.length === 42) {
+    const lastRow = cells.slice(35);
+    if (lastRow.every(c => c.other)) {
+      cells = cells.slice(0, 35);
+    }
+  }
+
+  // Render cells
+  cells.forEach(c => {
+    const cell = document.createElement('div');
+    cell.className = 'mini-cal-cell' + (c.other ? ' other-month' : '');
+    const isToday = !c.other &&
+      c.day === today.getDate() &&
+      c.month === today.getMonth() &&
+      c.year === today.getFullYear();
+
+    const numSpan = document.createElement('span');
+    numSpan.textContent = c.day;
+    numSpan.style.width = '28px';
+    numSpan.style.height = '28px';
+    numSpan.style.display = 'flex';
+    numSpan.style.alignItems = 'center';
+    numSpan.style.justifyContent = 'center';
+    numSpan.style.borderRadius = '50%';
+    if (isToday) {
+      numSpan.style.background = 'var(--accent)';
+      numSpan.style.color = '#fff';
+      numSpan.style.fontWeight = '500';
+    }
+    cell.appendChild(numSpan);
+
+    cell.onclick = () => {
+      viewYear = c.year;
+      viewMonth = c.month;
+      switchToMiniOff();
+    };
+
+    grid.appendChild(cell);
+  });
+
+  wrapper.appendChild(grid);
+  container.appendChild(wrapper);
+
+  document.getElementById('month-label').textContent =
+    new Date(miniYear, miniMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+
+  // Resize window to fit content
+  requestAnimationFrame(() => {
+    const numRows = cells.length / 7;
+    const rowHeight = 36;
+    const headerHeight = 50;
+    const dayHeaderHeight = 24;
+    const dragHeight = 20;
+    const padding = 24;
+    const totalHeight = dragHeight + headerHeight + dayHeaderHeight + (numRows * rowHeight) + padding;
+    if (window.__TAURI__) {
+      window.__TAURI__.window.getCurrentWindow().setSize(
+        new window.__TAURI__.window.LogicalSize(340, totalHeight)
+      );
+    }
+  });
+}
+
+function switchToMini() {
+  rangeSelectStart = null;
+  miniYear = new Date().getFullYear();
+  miniMonth = new Date().getMonth();
+  miniCalActive = true;
+
+  const monthView = document.getElementById('month-view');
+  const miniView = document.getElementById('mini-view');
+  const navBtns = document.getElementById('nav-btns');
+  const backBtn = document.getElementById('back-btn');
+  const header = document.querySelector('.header');
+  const legend = document.querySelector('.legend');
+
+  renderMiniCalendar();
+
+  monthView.classList.remove('active');
+  monthView.classList.add('slide-left');
+  miniView.classList.remove('slide-right');
+  miniView.classList.add('active');
+
+  navBtns.style.display = 'none';
+  backBtn.style.display = 'none';
+  header.style.display = 'none';
+  legend.style.display = 'none';
+  document.querySelector('.view-container').style.height = 'calc(100vh - 20px)';
+
+  animateResize(460, 340, 80, 400);
+}
+
+function switchToMiniOff() {
+  miniCalActive = false;
+
+  const monthView = document.getElementById('month-view');
+  const miniView = document.getElementById('mini-view');
+  const navBtns = document.getElementById('nav-btns');
+  const header = document.querySelector('.header');
+  const legend = document.querySelector('.legend');
+
+  miniView.classList.remove('active');
+  miniView.classList.add('slide-right');
+  monthView.classList.remove('slide-left');
+  monthView.classList.add('active');
+
+  navBtns.style.display = 'flex';
+  header.style.display = 'flex';
+  legend.style.display = 'flex';
+  document.querySelector('.view-container').style.height = '';
+
+  renderCalendar();
+  syncHolidays();
+  updateTodayBtn();
+
+  animateResize(340, 460, 80, 580);
 }
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -1436,7 +1762,17 @@ window.addEventListener('DOMContentLoaded', () => {
   setTimeout(() => restoreWindowPosition(), 100);
 });
 
-
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && rangeSelectStart) {
+    rangeSelectStart = null;
+    clearRangeHighlight();
+    return;
+  }
+  if (e.shiftKey && e.key === 'M') {
+    if (miniCalActive) switchToMiniOff();
+    else if (currentView === 'month') switchToMini();
+  }
+});
 
 // ── Autostart ─────────────────────────────────────────────────────────────────
 
@@ -1589,6 +1925,19 @@ async function showContextMenu(x, y) {
   };
   menu.appendChild(clockFormatItem);
 
+  const miniCalItem = document.createElement('div');
+  miniCalItem.className = 'context-menu-item';
+  miniCalItem.innerHTML = `
+    <span>Mini calendar</span>
+    <span style="font-size:10px;color:var(--text-tertiary)">Shift+M</span>
+  `;
+  miniCalItem.onclick = () => {
+    if (miniCalActive) switchToMiniOff();
+    else switchToMini();
+    closeContextMenu();
+  };
+  menu.appendChild(miniCalItem);
+
   // Divider
   menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
 
@@ -1694,7 +2043,7 @@ async function showContextMenu(x, y) {
   // About
   const aboutItem = document.createElement('div');
   aboutItem.className = 'context-menu-item';
-  aboutItem.innerHTML = '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.2.0</span>';
+  aboutItem.innerHTML = '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.6.0</span>';
   aboutItem.onclick = () => closeContextMenu();
   menu.appendChild(aboutItem);
 
@@ -1736,10 +2085,7 @@ async function showContextMenu(x, y) {
 
   // Close on click outside
   setTimeout(() => {
-    document.addEventListener('click', () => {
-      const sub = document.getElementById('weather-submenu');
-      if (sub) sub.remove();
-    }, { once: true });
+    document.addEventListener('click', closeContextMenu, { once: true });
   }, 50);
 }
 
