@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.5] - 2026-06-15
+
+### Added
+- **Custom event colors** — pick from 8 preset color swatches when creating or editing any event; color is shown on pills in all views
+- **High Contrast Light theme** — white background, black borders, solid pill colors with white text
+- **High Contrast Dark theme** — black background, white borders, yellow today accent with black text for legibility
+- High Contrast themes accessible via an expandable sub-section in the Theme picker
+
+### Changed
+- Removed the event type legend (Personal / Work / Reminder / Google / Outlook) from the header
+- Widget border radius set to 8px to match Windows 11 Fluent Design
+- Normalized all source file line endings to CRLF for consistency
+
+### Fixed
+- High contrast dark today date number now renders in black on the yellow accent (was white-on-yellow)
+- UTF-8 BOM removed from all source files — was silently preventing the app from loading after line ending normalization
+
+---
+
 ## [0.7.0] - 2026-06-15
 
 ### Added

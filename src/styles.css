@@ -254,6 +254,155 @@
   --pill-outlook-time: rgba(0, 100, 200, 0.6);
 }
 
+/* High contrast theme */
+[data-theme="highcontrast"] {
+  --bg-widget: #ffffff;
+  --bg-cell: #ffffff;
+  --bg-cell-hover: #eeeeee;
+  --bg-cell-today: rgba(0, 0, 200, 0.1);
+  --bg-todo: #ffffff;
+  --bg-notes: #ffffff;
+  --bg-week-notes: #ffffff;
+
+  --border-widget: #000000;
+  --border-cell: #000000;
+  --border-today: #0000cc;
+
+  --text-primary: #000000;
+  --text-secondary: #000000;
+  --text-tertiary: #333333;
+  --text-cell: #000000;
+
+  --accent: #0000cc;
+  --accent-light: rgba(0, 0, 200, 0.12);
+  --accent-border: #0000cc;
+
+  --bg-nav: #dddddd;
+  --border-nav: #000000;
+  --text-nav: #000000;
+
+  --bg-drag: #000000;
+  --text-drag: #ffffff;
+
+  --pill-personal-bg: #4B0082;
+  --pill-personal-color: #ffffff;
+  --pill-personal-border: #4B0082;
+  --pill-personal-time: rgba(255, 255, 255, 0.8);
+  --pill-work-bg: #145214;
+  --pill-work-color: #ffffff;
+  --pill-work-border: #145214;
+  --pill-work-time: rgba(255, 255, 255, 0.8);
+  --pill-reminder-bg: #7A3B00;
+  --pill-reminder-color: #ffffff;
+  --pill-reminder-border: #7A3B00;
+  --pill-reminder-time: rgba(255, 255, 255, 0.8);
+  --pill-google-bg: #1a56b0;
+  --pill-google-color: #ffffff;
+  --pill-google-border: #1a56b0;
+  --pill-google-time: rgba(255, 255, 255, 0.8);
+  --pill-outlook-bg: #0067b8;
+  --pill-outlook-color: #ffffff;
+  --pill-outlook-border: #0067b8;
+  --pill-outlook-time: rgba(255, 255, 255, 0.8);
+  --pill-holiday-bg: #333333;
+  --pill-holiday-color: #ffffff;
+  --pill-holiday-border: #000000;
+  --pill-holiday-time: rgba(255, 255, 255, 0.8);
+}
+
+/* High contrast dark theme */
+[data-theme="highcontrastdark"] {
+  --bg-widget: #000000;
+  --bg-cell: #000000;
+  --bg-cell-hover: #1a1a1a;
+  --bg-cell-today: rgba(255, 255, 0, 0.2);
+  --bg-todo: #000000;
+  --bg-notes: #000000;
+  --bg-week-notes: #000000;
+
+  --border-widget: #ffffff;
+  --border-cell: #ffffff;
+  --border-today: #ffff00;
+
+  --text-primary: #ffffff;
+  --text-secondary: #ffffff;
+  --text-tertiary: #cccccc;
+  --text-cell: #ffffff;
+
+  --accent: #ffff00;
+  --accent-light: rgba(255, 255, 0, 0.15);
+  --accent-border: #ffff00;
+
+  --bg-nav: #333333;
+  --border-nav: #ffffff;
+  --text-nav: #ffffff;
+
+  --bg-drag: #ffffff;
+  --text-drag: #000000;
+
+  --pill-personal-bg: #7B2FBE;
+  --pill-personal-color: #ffffff;
+  --pill-personal-border: #9B4FDE;
+  --pill-personal-time: rgba(255, 255, 255, 0.8);
+  --pill-work-bg: #1a7a1a;
+  --pill-work-color: #ffffff;
+  --pill-work-border: #2a9a2a;
+  --pill-work-time: rgba(255, 255, 255, 0.8);
+  --pill-reminder-bg: #a05000;
+  --pill-reminder-color: #ffffff;
+  --pill-reminder-border: #c07000;
+  --pill-reminder-time: rgba(255, 255, 255, 0.8);
+  --pill-google-bg: #1a56b0;
+  --pill-google-color: #ffffff;
+  --pill-google-border: #2a76d0;
+  --pill-google-time: rgba(255, 255, 255, 0.8);
+  --pill-outlook-bg: #0067b8;
+  --pill-outlook-color: #ffffff;
+  --pill-outlook-border: #0087d8;
+  --pill-outlook-time: rgba(255, 255, 255, 0.8);
+  --pill-holiday-bg: #444444;
+  --pill-holiday-color: #ffffff;
+  --pill-holiday-border: #666666;
+  --pill-holiday-time: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme="highcontrastdark"] .day-cell.today .day-num,
+[data-theme="highcontrastdark"] .week-day-num.today {
+  color: #000000;
+}
+
+/* Color swatches */
+.color-swatches {
+  display: flex;
+  gap: 5px;
+  padding: 2px 0;
+  flex-wrap: wrap;
+}
+
+.color-swatch {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  box-sizing: border-box;
+  flex-shrink: 0;
+}
+
+.color-swatch.selected {
+  border-color: var(--text-primary);
+}
+
+.color-swatch.swatch-none {
+  background: transparent !important;
+  border: 2px dashed var(--text-tertiary);
+}
+
+.color-swatch.swatch-none.selected {
+  border-color: var(--text-primary);
+  border-style: solid;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -272,6 +421,7 @@ body {
   height: 100vh;
   background: var(--bg-widget);
   border: 1px solid var(--border-widget);
+  border-radius: 8px;
   padding: 20px 20px 0 20px;
   color: var(--text-primary);
   overflow: hidden;
@@ -387,32 +537,7 @@ body {
   background: var(--bg-cell-hover);
 }
 
-.legend {
-  display: flex;
-  gap: 12px;
-  margin-bottom: 10px;
-}
 
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  color: var(--text-secondary);
-}
-
-.legend-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-}
-
-.legend-dot.personal { background: rgba(100, 70, 220, 0.8); }
-.legend-dot.work { background: rgba(0, 140, 90, 0.8); }
-.legend-dot.reminder { background: rgba(180, 110, 0, 0.8); }
-.legend-dot.google { background: rgba(66, 133, 244, 0.8); }
-.legend-dot.outlook { background: rgba(0, 120, 212, 0.8); }
-.legend-dot.holiday { background: rgba(0, 0, 0, 0.3); }
 
 /* View container */
 .view-container {

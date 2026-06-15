@@ -289,6 +289,7 @@ function renderCalendar() {
         const pill = document.createElement('div');
         pill.className = 'event-pill ' + (ev.type || 'personal');
         pill.textContent = (!ev.endDate || ev.date === cellKey) ? ev.title : ' ';
+        applyEventColor(pill, ev);
         cell.appendChild(pill);
       });
       if (evs.length > 2) {
@@ -393,6 +394,10 @@ function openRangeEventModal(startKey, endKey) {
   });
   modal.appendChild(typeSelect);
 
+  let selectedColor = null;
+  const colorSwatchesRange = makeColorSwatches(null, (col) => { selectedColor = col; });
+  modal.appendChild(colorSwatchesRange);
+
   const actions = document.createElement('div');
   actions.className = 'modal-actions';
 
@@ -413,7 +418,8 @@ function openRangeEventModal(startKey, endKey) {
       title,
       date: startKey,
       endDate: startKey === endKey ? null : endKey,
-      type: typeSelect.value
+      type: typeSelect.value,
+      color: selectedColor || undefined
     });
     await saveEvents();
     overlay.remove();
@@ -534,6 +540,7 @@ function renderWeekView() {
       bar.textContent = ev.title;
       if (continuesLeft) bar.classList.add('continues-left');
       if (continuesRight) bar.classList.add('continues-right');
+      applyEventColor(bar, ev);
       bar.onclick = () => {
         dayViewDate = new Date(ev.date + 'T00:00:00');
         pendingExpandEventId = ev.id;
@@ -746,6 +753,14 @@ function createDayEventPill(ev, key) {
   pillHeader.appendChild(time);
   pill.appendChild(pillHeader);
 
+  if (ev.color) {
+    pill.style.backgroundColor = ev.color;
+    pill.style.borderColor = ev.color;
+    const tc = getContrastColor(ev.color);
+    title.style.color = tc;
+    time.style.color = tc;
+  }
+
   pill.onmousedown = e => e.stopPropagation();
   pill.onclick = () => toggleEventExpand(pill, ev, key);
 
@@ -793,6 +808,21 @@ function toggleEventExpand(pill, ev, key) {
     typeSelect.appendChild(opt);
   });
   typeSelect.onmousedown = e => e.stopPropagation();
+
+  let selectedColor = ev.color || null;
+  const colorSwatches = makeColorSwatches(selectedColor, (c) => {
+    selectedColor = c;
+    pill.style.backgroundColor = c || '';
+    pill.style.borderColor = c || '';
+    if (c) {
+      const tc = getContrastColor(c);
+      title.style.color = tc;
+      time.style.color = tc;
+    } else {
+      title.style.color = '';
+      time.style.color = '';
+    }
+  });
 
   const notesInput = document.createElement('input');
   notesInput.type = 'text';
@@ -853,6 +883,7 @@ function toggleEventExpand(pill, ev, key) {
           parentEvent.title = titleInput.value.trim();
           parentEvent.time = timeInput.value;
           parentEvent.type = typeSelect.value;
+          parentEvent.color = selectedColor || undefined;
           parentEvent.notes = notesInput.value.trim();
         } else {
           // Edit just this occurrence - store as exception
@@ -861,6 +892,7 @@ function toggleEventExpand(pill, ev, key) {
             title: titleInput.value.trim(),
             time: timeInput.value,
             type: typeSelect.value,
+            color: selectedColor || undefined,
             notes: notesInput.value.trim()
           };
         }
@@ -875,6 +907,7 @@ function toggleEventExpand(pill, ev, key) {
           time: timeInput.value,
           endDate: endDateExpandInput.value || null,
           type: typeSelect.value,
+          color: selectedColor || undefined,
           notes: notesInput.value.trim()
         };
         await saveEvents();
@@ -892,6 +925,7 @@ function toggleEventExpand(pill, ev, key) {
   expanded.appendChild(timeInput);
   expanded.appendChild(endDateExpandInput);
   expanded.appendChild(typeSelect);
+  expanded.appendChild(colorSwatches);
   expanded.appendChild(notesInput);
   expanded.appendChild(actions);
   pill.appendChild(expanded);
@@ -942,6 +976,13 @@ function openInlineEventForm(key, container) {
   notesInput.placeholder = 'Notes (optional)';
   notesInput.className = 'day-todo-input';
   notesInput.onmousedown = e => e.stopPropagation();
+
+  let selectedColor = null;
+  const colorSwatchesInline = makeColorSwatches(null, (col) => {
+    selectedColor = col;
+    form.style.backgroundColor = col || '';
+    form.style.borderColor = col || '';
+  });
 
   // Recurrence section
   const repeatSelect = document.createElement('select');
@@ -1041,6 +1082,7 @@ function openInlineEventForm(key, container) {
       endDate: multiDayEndInput.value || null,
       time: timeInput.value,
       type: typeSelect.value,
+      color: selectedColor || undefined,
       notes: notesInput.value.trim()
     };
 
@@ -1077,6 +1119,7 @@ function openInlineEventForm(key, container) {
   form.appendChild(timeInput);
   form.appendChild(multiDayEndInput);
   form.appendChild(typeSelect);
+  form.appendChild(colorSwatchesInline);
   form.appendChild(notesInput);
   form.appendChild(repeatSelect);
   form.appendChild(customInterval);
@@ -1119,8 +1162,7 @@ function switchToWeek() {
     viewContainer.style.height = 'auto';
     const contentHeight = document.getElementById('week-view').scrollHeight;
     const headerHeight = document.querySelector('.header').offsetHeight;
-    const legendHeight = document.querySelector('.legend').offsetHeight;
-    const totalHeight = contentHeight + headerHeight + legendHeight + 75;
+    const totalHeight = contentHeight + headerHeight + 75;
     viewContainer.style.height = '';
     animateResize(460, 1024, 80, totalHeight);
     setTimeout(() => {
@@ -1157,8 +1199,7 @@ function switchToDay() {
     viewContainer.style.height = 'auto';
     const contentHeight = document.getElementById('day-view').scrollHeight;
     const headerHeight = document.querySelector('.header').offsetHeight;
-    const legendHeight = document.querySelector('.legend').offsetHeight;
-    const totalHeight = contentHeight + headerHeight + legendHeight + 85;
+    const totalHeight = contentHeight + headerHeight + 85;
     viewContainer.style.height = '';
     animateResize(fromWidth, 560, 80, totalHeight);
     setTimeout(() => {
@@ -2053,8 +2094,6 @@ function switchToMini() {
   const navBtns = document.getElementById('nav-btns');
   const backBtn = document.getElementById('back-btn');
   const header = document.querySelector('.header');
-  const legend = document.querySelector('.legend');
-
   renderMiniCalendar();
 
   monthView.classList.remove('active');
@@ -2065,7 +2104,6 @@ function switchToMini() {
   navBtns.style.display = 'none';
   backBtn.style.display = 'none';
   header.style.display = 'none';
-  legend.style.display = 'none';
   document.querySelector('.view-container').style.height = 'calc(100vh - 20px)';
 
   animateResize(460, 340, 80, 400);
@@ -2078,8 +2116,6 @@ function switchToMiniOff() {
   const miniView = document.getElementById('mini-view');
   const navBtns = document.getElementById('nav-btns');
   const header = document.querySelector('.header');
-  const legend = document.querySelector('.legend');
-
   miniView.classList.remove('active');
   miniView.classList.add('slide-right');
   monthView.classList.remove('slide-left');
@@ -2087,7 +2123,6 @@ function switchToMiniOff() {
 
   navBtns.style.display = 'flex';
   header.style.display = 'flex';
-  legend.style.display = 'flex';
   document.querySelector('.view-container').style.height = '';
 
   renderCalendar();
@@ -2206,7 +2241,64 @@ async function isAlwaysOnTop() {
 
 // ── Theme ─────────────────────────────────────────────────────────────────────
 
-const themes = ['default', 'dark', 'warm', 'cool'];
+const themes = ['default', 'dark', 'warm', 'cool', 'highcontrast', 'highcontrastdark'];
+
+// ── Event colors ──────────────────────────────────────────────────────────────
+
+const EVENT_COLORS = [
+  { hex: '#6446DC', label: 'Purple' },
+  { hex: '#1A7A52', label: 'Green' },
+  { hex: '#C47A00', label: 'Amber' },
+  { hex: '#D93025', label: 'Red' },
+  { hex: '#C2185B', label: 'Pink' },
+  { hex: '#0891B2', label: 'Teal' },
+  { hex: '#1E40AF', label: 'Navy' },
+  { hex: '#6B7280', label: 'Gray' },
+];
+
+function getContrastColor(hex) {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? '#1a1a1a' : '#ffffff';
+}
+
+function makeColorSwatches(currentColor, onChange) {
+  const row = document.createElement('div');
+  row.className = 'color-swatches';
+  row.onmousedown = e => e.stopPropagation();
+
+  const none = document.createElement('span');
+  none.className = 'color-swatch swatch-none' + (!currentColor ? ' selected' : '');
+  none.title = 'Default';
+  none.onclick = () => {
+    row.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+    none.classList.add('selected');
+    onChange(null);
+  };
+  row.appendChild(none);
+
+  EVENT_COLORS.forEach(({ hex, label }) => {
+    const swatch = document.createElement('span');
+    swatch.className = 'color-swatch' + (currentColor === hex ? ' selected' : '');
+    swatch.title = label;
+    swatch.style.background = hex;
+    swatch.onclick = () => {
+      row.querySelectorAll('.color-swatch').forEach(s => s.classList.remove('selected'));
+      swatch.classList.add('selected');
+      onChange(hex);
+    };
+    row.appendChild(swatch);
+  });
+  return row;
+}
+
+function applyEventColor(el, ev) {
+  if (!ev.color) return;
+  el.style.backgroundColor = ev.color;
+  el.style.borderColor = ev.color;
+  el.style.color = getContrastColor(ev.color);
+}
 
 function applyTheme(theme) {
   const widget = document.getElementById('widget');
@@ -2291,7 +2383,7 @@ async function showContextMenu(x, y) {
       { id: 'default', label: 'Default',       color: '#FAF7F2', border: '#ccc' },
       { id: 'dark',    label: 'Gruvbox Dark',  color: '#282828', border: '#A89984' },
       { id: 'warm',    label: 'Gruvbox Light', color: '#F9F5D7', border: '#665C54' },
-      { id: 'cool',    label: 'Cool',          color: '#F0F4FA', border: '#6a9ad4' },
+      { id: 'cool', label: 'Cool', color: '#F0F4FA', border: '#6a9ad4' },
     ].forEach(t => {
       body.appendChild(makeItem(`
         <span>
@@ -2301,6 +2393,45 @@ async function showContextMenu(x, y) {
         ${currentTheme === t.id ? '<span class="check">✓</span>' : ''}
       `, () => { applyTheme(t.id); closeContextMenu(); }));
     });
+
+    // High Contrast expandable sub-section
+    const hcIsActive = currentTheme === 'highcontrast' || currentTheme === 'highcontrastdark';
+    const hcHeader = document.createElement('div');
+    hcHeader.className = 'context-menu-item';
+    hcHeader.innerHTML = `
+      <span>
+        <span class="theme-dot" style="background:#ffffff;border:1px solid #000000"></span>
+        High Contrast${hcIsActive ? '' : ''}
+      </span>
+      <span style="display:flex;align-items:center;gap:4px">
+        ${hcIsActive ? '<span class="check">✓</span>' : ''}
+        <span class="context-menu-section-toggle" id="hc-arrow">${contextMenuState['highcontrast'] ? '▾' : '▸'}</span>
+      </span>`;
+    const hcBody = document.createElement('div');
+    hcBody.className = 'context-menu-section-body' + (contextMenuState['highcontrast'] ? ' open' : '');
+    [{ value: 'highcontrast', label: 'Light' }, { value: 'highcontrastdark', label: 'Dark' }].forEach(({ value, label }) => {
+      const sub = document.createElement('div');
+      sub.className = 'context-menu-item';
+      sub.style.paddingLeft = '24px';
+      sub.innerHTML = `<span>${label}</span>${currentTheme === value ? '<span class="check">✓</span>' : ''}`;
+      sub.onclick = () => { applyTheme(value); closeContextMenu(); };
+      hcBody.appendChild(sub);
+    });
+    hcHeader.onclick = (e) => {
+      e.stopPropagation();
+      const wasOpen = hcBody.classList.contains('open');
+      if (wasOpen) {
+        hcBody.classList.remove('open');
+        hcHeader.querySelector('#hc-arrow').textContent = '▸';
+        contextMenuState['highcontrast'] = false;
+      } else {
+        hcBody.classList.add('open');
+        hcHeader.querySelector('#hc-arrow').textContent = '▾';
+        contextMenuState['highcontrast'] = true;
+      }
+    };
+    body.appendChild(hcHeader);
+    body.appendChild(hcBody);
   }));
 
   addDivider();
@@ -2494,7 +2625,7 @@ async function showContextMenu(x, y) {
 
   // ── About & Close (always visible) ───────────────────────────────────────
   menu.appendChild(makeItem(
-    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.0</span>',
+    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.5</span>',
     () => closeContextMenu()
   ));
   menu.appendChild(makeItem('Close', async () => {
