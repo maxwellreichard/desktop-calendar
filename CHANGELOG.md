@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [0.7.5] - 2026-06-15
+## [0.7.1] - 2026-06-15
 
 ### Added
 - **Custom event colors** — pick from 8 preset color swatches when creating or editing any event; color is shown on pills in all views
