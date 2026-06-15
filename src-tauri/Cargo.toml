@@ -1,6 +1,6 @@
 [package]
 name = "desktop-calendar"
-version = "0.7.1"
+version = "0.7.2"
 description = "A desktop calendar widget"
 authors = []
 license = ""
@@ -14,6 +14,7 @@ tauri-plugin-autostart = "2"
 [dependencies]
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-notification = "2"
 tauri = { version = "2", features = [] }
 tauri-plugin-opener = "2"
 window-vibrancy = "0.5"

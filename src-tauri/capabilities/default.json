@@ -21,6 +21,7 @@
     "shell:allow-open",
     "dialog:allow-save",
     "fs:allow-write-text-file",
-    "fs:scope-home-recursive"
+    "fs:scope-home-recursive",
+    "notification:default"
   ]
 }

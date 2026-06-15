@@ -754,11 +754,10 @@ function createDayEventPill(ev, key) {
   pill.appendChild(pillHeader);
 
   if (ev.color) {
-    pill.style.backgroundColor = ev.color;
-    pill.style.borderColor = ev.color;
-    const tc = getContrastColor(ev.color);
-    title.style.color = tc;
-    time.style.color = tc;
+    applyPillColor(pill, ev.color);
+    const pillTextColor = getPillTextColor(ev.color);
+    title.style.color = pillTextColor;
+    time.style.color = pillTextColor;
   }
 
   pill.onmousedown = e => e.stopPropagation();
@@ -812,13 +811,13 @@ function toggleEventExpand(pill, ev, key) {
   let selectedColor = ev.color || null;
   const colorSwatches = makeColorSwatches(selectedColor, (c) => {
     selectedColor = c;
-    pill.style.backgroundColor = c || '';
-    pill.style.borderColor = c || '';
     if (c) {
-      const tc = getContrastColor(c);
+      applyPillColor(pill, c);
+      const tc = getPillTextColor(c);
       title.style.color = tc;
       time.style.color = tc;
     } else {
+      clearPillColor(pill);
       title.style.color = '';
       time.style.color = '';
     }
@@ -980,8 +979,7 @@ function openInlineEventForm(key, container) {
   let selectedColor = null;
   const colorSwatchesInline = makeColorSwatches(null, (col) => {
     selectedColor = col;
-    form.style.backgroundColor = col || '';
-    form.style.borderColor = col || '';
+    if (col) applyPillColor(form, col); else clearPillColor(form);
   });
 
   // Recurrence section
@@ -1548,6 +1546,119 @@ async function syncGoogleEvents() {
   } catch (e) {
     console.error('Google sync error:', e);
   }
+}
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+
+let notificationsEnabled = localStorage.getItem('notifications_enabled') !== 'false';
+let morningNotifTimer = null;
+const eventReminderTimers = [];
+
+function toggleNotifications() {
+  notificationsEnabled = !notificationsEnabled;
+  localStorage.setItem('notifications_enabled', notificationsEnabled);
+  if (notificationsEnabled) {
+    initNotifications();
+  } else {
+    if (morningNotifTimer) { clearTimeout(morningNotifTimer); morningNotifTimer = null; }
+    eventReminderTimers.forEach(t => clearTimeout(t));
+    eventReminderTimers.length = 0;
+  }
+}
+
+function localDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function formatEventTime(timeStr) {
+  if (!timeStr) return '';
+  const [h, min] = timeStr.split(':').map(Number);
+  if (clockSettings.format === '12h') {
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    return `${h % 12 || 12}:${String(min).padStart(2, '0')} ${ampm}`;
+  }
+  return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+}
+
+function sendNotification(title, body) {
+  if (!window.__TAURI__) return;
+  window.__TAURI__.notification.sendNotification({ title, body });
+}
+
+function sendMorningNotification(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const evs = getEventsForDate(y, m - 1, d).filter(ev => ev.type !== 'holiday' || !ev.time);
+  if (!evs.length) return;
+
+  const lines = evs.map(ev => {
+    if (ev.time) return `• ${ev.title} at ${formatEventTime(ev.time)}`;
+    if (ev.type === 'holiday') return `• ${ev.title}`;
+    return `• ${ev.title} (all day)`;
+  });
+
+  sendNotification("Today's Events", lines.join('\n'));
+  localStorage.setItem('morning_notif_date', dateStr);
+}
+
+function scheduleNotifications() {
+  if (morningNotifTimer) clearTimeout(morningNotifTimer);
+  eventReminderTimers.forEach(t => clearTimeout(t));
+  eventReminderTimers.length = 0;
+
+  const now = new Date();
+  const today = localDateStr(now);
+
+  // Morning notification at 8:00am
+  const morning = new Date(now);
+  morning.setHours(8, 0, 0, 0);
+  let morningDelay = morning.getTime() - now.getTime();
+
+  if (morningDelay <= 0) {
+    const lastSent = localStorage.getItem('morning_notif_date');
+    if (lastSent !== today) sendMorningNotification(today);
+    morning.setDate(morning.getDate() + 1);
+    morningDelay = morning.getTime() - now.getTime();
+  }
+
+  morningNotifTimer = setTimeout(() => {
+    sendMorningNotification(localDateStr(new Date()));
+    scheduleNotifications();
+  }, morningDelay);
+
+  // 15-minute reminders for timed events today
+  const [y, m, d] = today.split('-').map(Number);
+  getEventsForDate(y, m - 1, d)
+    .filter(ev => ev.time && ev.type !== 'holiday')
+    .forEach(ev => {
+      const [h, min] = ev.time.split(':').map(Number);
+      const reminderTime = new Date(y, m - 1, d, h, min, 0, 0).getTime() - 15 * 60 * 1000;
+      const delay = reminderTime - now.getTime();
+      if (delay > 0) {
+        eventReminderTimers.push(setTimeout(() => {
+          sendNotification('Upcoming Event', `${ev.title} starts in 15 minutes (${formatEventTime(ev.time)})`);
+        }, delay));
+      }
+    });
+
+  // Reschedule at midnight for the next day
+  const midnight = new Date(now);
+  midnight.setDate(midnight.getDate() + 1);
+  midnight.setHours(0, 1, 0, 0);
+  eventReminderTimers.push(setTimeout(scheduleNotifications, midnight.getTime() - now.getTime()));
+}
+
+async function initNotifications() {
+  if (!window.__TAURI__ || !notificationsEnabled) return;
+  let granted = await window.__TAURI__.notification.isPermissionGranted();
+  if (!granted) {
+    const perm = await window.__TAURI__.notification.requestPermission();
+    granted = perm === 'granted';
+  }
+  if (!granted) return;
+  scheduleNotifications();
 }
 
 // ── ICS Import / Export ───────────────────────────────────────────────────────
@@ -2185,6 +2296,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initGoogleCalendar();
   initOutlookCalendar();
   fetchWeather();
+  initNotifications();
   setTimeout(() => restoreWindowPosition(), 100);
 });
 
@@ -2256,11 +2368,56 @@ const EVENT_COLORS = [
   { hex: '#6B7280', label: 'Gray' },
 ];
 
+function hexToRgb(hex) {
+  return {
+    r: parseInt(hex.slice(1, 3), 16),
+    g: parseInt(hex.slice(3, 5), 16),
+    b: parseInt(hex.slice(5, 7), 16),
+  };
+}
+
 function getContrastColor(hex) {
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
+  const { r, g, b } = hexToRgb(hex);
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.5 ? '#1a1a1a' : '#ffffff';
+}
+
+function isHighContrast() {
+  const theme = document.getElementById('widget')?.getAttribute('data-theme') || 'default';
+  return theme === 'highcontrast' || theme === 'highcontrastdark';
+}
+
+function darkenHex(hex, factor) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgb(${Math.round(r * factor)}, ${Math.round(g * factor)}, ${Math.round(b * factor)})`;
+}
+
+function lightenHex(hex, factor) {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgb(${Math.round(r + (255 - r) * factor)}, ${Math.round(g + (255 - g) * factor)}, ${Math.round(b + (255 - b) * factor)})`;
+}
+
+function getPillTextColor(hex) {
+  if (isHighContrast()) return '#ffffff';
+  const theme = document.getElementById('widget')?.getAttribute('data-theme') || 'default';
+  if (theme === 'dark') return lightenHex(hex, 0.6);
+  if (theme === 'warm') return darkenHex(hex, 0.6);
+  return hex;
+}
+
+function applyPillColor(el, hex) {
+  if (isHighContrast()) {
+    el.style.backgroundColor = hex;
+    el.style.borderColor = hex;
+  } else {
+    const { r, g, b } = hexToRgb(hex);
+    el.style.backgroundColor = `rgba(${r}, ${g}, ${b}, 0.2)`;
+    el.style.borderColor = `rgba(${r}, ${g}, ${b}, 0.3)`;
+  }
+}
+
+function clearPillColor(el) {
+  el.style.backgroundColor = '';
+  el.style.borderColor = '';
 }
 
 function makeColorSwatches(currentColor, onChange) {
@@ -2295,9 +2452,8 @@ function makeColorSwatches(currentColor, onChange) {
 
 function applyEventColor(el, ev) {
   if (!ev.color) return;
-  el.style.backgroundColor = ev.color;
-  el.style.borderColor = ev.color;
-  el.style.color = getContrastColor(ev.color);
+  applyPillColor(el, ev.color);
+  el.style.color = getPillTextColor(ev.color);
 }
 
 function applyTheme(theme) {
@@ -2308,6 +2464,7 @@ function applyTheme(theme) {
     widget.setAttribute('data-theme', theme);
   }
   localStorage.setItem('calendar_theme', theme);
+  renderCalendar();
 }
 
 function loadTheme() {
@@ -2458,6 +2615,10 @@ async function showContextMenu(x, y) {
     body.appendChild(makeItem(
       `<span>Mini calendar</span><span style="font-size:10px;color:var(--text-tertiary)">Shift+M</span>`,
       () => { if (miniCalActive) switchToMiniOff(); else switchToMini(); closeContextMenu(); }
+    ));
+    body.appendChild(makeItem(
+      `<span>Notifications</span>${notificationsEnabled ? '<span class="check">✓</span>' : ''}`,
+      () => { toggleNotifications(); closeContextMenu(); }
     ));
     body.appendChild(makeItem(
       `<span>Import .ics</span>`,
@@ -2625,7 +2786,7 @@ async function showContextMenu(x, y) {
 
   // ── About & Close (always visible) ───────────────────────────────────────
   menu.appendChild(makeItem(
-    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.1</span>',
+    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.2</span>',
     () => closeContextMenu()
   ));
   menu.appendChild(makeItem('Close', async () => {

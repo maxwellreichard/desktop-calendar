@@ -1,6 +1,6 @@
 {
   "productName": "desktop-calendar",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "identifier": "com.reicharm.desktop-calendar",
   "build": {
     "frontendDist": "../src"

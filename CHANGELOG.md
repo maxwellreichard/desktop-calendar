@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.2] - 2026-06-15
+
+### Added
+- **Event reminders / notifications** — morning digest at 8:00am listing all events for the day; 15-minute heads-up for each timed event
+  - Notifications toggle in Settings section of the right-click menu
+  - Respects 12h/24h clock setting for time display
+  - Timers auto-reschedule at midnight for the next day
+
+### Fixed
+- Custom event color pills now use semi-transparent backgrounds (matching default pill style) on all themes except High Contrast
+- High Contrast themes use full opacity with white text on custom color pills
+- Gruvbox Dark custom pill text uses a lightened tint of the base color instead of pure white
+- Gruvbox Light / Warm amber color contrast raised
+- Switching themes now re-renders the calendar so custom pill colors update immediately
+
+---
+
 ## [0.7.1] - 2026-06-15
 
 ### Added
