@@ -3,6 +3,46 @@
 All notable changes to this project will be documented in this file.
 
 ---
+
+## [0.7.0] - 2026-06-15
+
+### Added
+- **ICS import/export** — import `.ics` files from any calendar app; export local events to `.ics`
+  - Native "Save As" dialog on export via `tauri-plugin-dialog`
+  - Deduplicates imports by UID so re-importing the same file is safe
+  - RFC 5545 compliant all-day event handling (exclusive DTEND)
+- **Google Calendar auto-sync** — events refresh automatically every hour while connected
+- **macOS scaffolding** — platform-conditional vibrancy applied at startup (`NSVisualEffectMaterial::HudWindow` on macOS, Mica on Windows); app is ready to build and test on macOS
+
+### Changed
+- Bumped `tauri-plugin-dialog` dependency for native file dialogs
+
+---
+
+## [0.6.0] - 2026-06-12
+
+### Added
+- **Week view spanning bars** — all events (single-day and multi-day) render as column-spanning bars in a unified banner row; longer events claim top rows
+- **Range selection in month view** — Shift+click a start date, Shift+click an end date to open a multi-day event creation modal
+- **Collapsible context menu sections** — Themes, Settings, Calendars, Holidays, and Weather are now expandable/collapsible; open section persists within a session
+- **Mini calendar** — compact date picker toggled via Shift+M or the Settings section
+
+### Fixed
+- Numerous aesthetic refinements and layout consistency improvements across all views
+
+---
+
+## [0.5.0] - 2026-05-28
+
+### Added
+- **Weather integration** — current conditions displayed in the header with icon and temperature
+  - Configurable location (city or zip code) from the context menu
+  - Toggle Celsius/Fahrenheit
+  - Weather data cached to avoid redundant API calls
+- **12/24h clock toggle** — switch between clock formats from the Settings section
+
+---
+
 ## [0.4.0] - 2026-05-28
 
 ### Added
