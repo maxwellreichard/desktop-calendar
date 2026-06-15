@@ -2494,7 +2494,7 @@ async function showContextMenu(x, y) {
 
   // ── About & Close (always visible) ───────────────────────────────────────
   menu.appendChild(makeItem(
-    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.6.0</span>',
+    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.0</span>',
     () => closeContextMenu()
   ));
   menu.appendChild(makeItem('Close', async () => {
