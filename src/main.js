@@ -1,6 +1,11 @@
 // Google Calendar
 let googleEvents = [];
 let googleConnected = false;
+let googleSyncTimer = null;
+
+// Outlook Calendar
+let outlookEvents = [];
+let outlookConnected = false;
 
 // Root
 let events = [];
@@ -15,6 +20,7 @@ let editingId = null;
 let expandedEventId = null;
 let pendingExpandEventId = null;
 let rangeSelectStart = null;
+const contextMenuState = {}; // tracks which sections are expanded within a session
 let clockSettings = JSON.parse(localStorage.getItem('clock_settings') || '{"format": "24h"}');
 
 // Recurring
@@ -209,10 +215,16 @@ function getEventsForDate(y, m, d) {
   });
   const recurring = monthRecurringEvents.filter(e => e.date === key);
   const google = googleEvents.filter(e => e.date === key);
+  const outlook = outlookEvents.filter(e => {
+    if (e.date === key) return true;
+    if (e.endDate && e.endDate >= key && e.date < key) return true;
+    return false;
+  });
   const holidays = holidayEvents.filter(e => e.date === key);
   const multiDay = local.filter(e => e.endDate);
-  const regular = [...local.filter(e => !e.endDate), ...recurring, ...google];
-  return [...multiDay, ...regular, ...holidays];
+  const outlookMultiDay = outlook.filter(e => e.endDate);
+  const regular = [...local.filter(e => !e.endDate), ...recurring, ...google, ...outlook.filter(e => !e.endDate)];
+  return [...multiDay, ...outlookMultiDay, ...regular, ...holidays];
 }
 
 function getAllEventsForMonth(year, month) {
@@ -1456,9 +1468,36 @@ async function deleteGoogleEvent(googleId) {
   return response.ok || response.status === 204;
 }
 
+async function fetchGoogleUserInfo() {
+  const token = await getValidAccessToken();
+  if (!token) return;
+  try {
+    const res = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.email) localStorage.setItem('google_user_email', data.email);
+    }
+  } catch (e) {}
+}
+
+function startGoogleSyncTimer() {
+  if (googleSyncTimer) clearInterval(googleSyncTimer);
+  googleSyncTimer = setInterval(() => syncGoogleEvents(), 60 * 60 * 1000);
+}
+
+function stopGoogleSyncTimer() {
+  if (googleSyncTimer) { clearInterval(googleSyncTimer); googleSyncTimer = null; }
+}
+
 async function initGoogleCalendar() {
   googleConnected = isGoogleConnected();
-  if (googleConnected) await syncGoogleEvents();
+  if (googleConnected) {
+    await fetchGoogleUserInfo();
+    await syncGoogleEvents();
+    startGoogleSyncTimer();
+  }
 }
 
 async function syncGoogleEvents() {
@@ -1467,6 +1506,357 @@ async function syncGoogleEvents() {
     renderCalendar();
   } catch (e) {
     console.error('Google sync error:', e);
+  }
+}
+
+// ── ICS Import / Export ───────────────────────────────────────────────────────
+
+function icsDateStr(dateStr) {
+  return dateStr.replace(/-/g, '');
+}
+
+function icsDatetimeStr(dateStr, time) {
+  const [h, m] = time.split(':');
+  return `${icsDateStr(dateStr)}T${h.padStart(2, '0')}${m.padStart(2, '0')}00`;
+}
+
+function addDaysToDate(dateStr, n) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function buildICSContent() {
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Desktop Calendar//EN',
+    'CALSCALE:GREGORIAN',
+  ];
+
+  for (const ev of events) {
+    if (ev.googleId) continue;
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${ev.id}@desktop-calendar`);
+
+    if (ev.time) {
+      lines.push(`DTSTART:${icsDatetimeStr(ev.date, ev.time)}`);
+      const endH = (parseInt(ev.time.split(':')[0]) + 1) % 24;
+      const endTime = `${endH.toString().padStart(2, '0')}:${ev.time.split(':')[1]}`;
+      lines.push(`DTEND:${icsDatetimeStr(ev.date, endTime)}`);
+    } else {
+      lines.push(`DTSTART;VALUE=DATE:${icsDateStr(ev.date)}`);
+      const dtend = ev.endDate ? addDaysToDate(ev.endDate, 1) : addDaysToDate(ev.date, 1);
+      lines.push(`DTEND;VALUE=DATE:${icsDateStr(dtend)}`);
+    }
+
+    lines.push(`SUMMARY:${ev.title.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;')}`);
+    if (ev.notes) lines.push(`DESCRIPTION:${ev.notes.replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/,/g, '\\,').replace(/;/g, '\\;')}`);
+
+    lines.push('END:VEVENT');
+  }
+
+  lines.push('END:VCALENDAR');
+  return lines.join('\r\n');
+}
+
+async function exportICS() {
+  const content = buildICSContent();
+
+  if (window.__TAURI__) {
+    const path = await window.__TAURI__.dialog.save({
+      defaultPath: 'calendar.ics',
+      filters: [{ name: 'iCalendar', extensions: ['ics'] }]
+    });
+    if (path) await window.__TAURI__.fs.writeTextFile(path, content);
+  } else {
+    const blob = new Blob([content], { type: 'text/calendar' });
+    const url = URL.createObjectURL(blob);
+    const a = Object.assign(document.createElement('a'), { href: url, download: 'calendar.ics' });
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+}
+
+async function importICS() {
+  const input = Object.assign(document.createElement('input'), { type: 'file', accept: '.ics,text/calendar' });
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    const text = await file.text();
+    const imported = parseICS(text);
+    if (!imported.length) { alert('No events found in file.'); return; }
+    let added = 0;
+    for (const ev of imported) {
+      if (!events.find(e => e.icsUid && e.icsUid === ev.icsUid)) {
+        events.push(ev);
+        added++;
+      }
+    }
+    await saveEvents();
+    renderCalendar();
+    alert(`Imported ${added} event${added !== 1 ? 's' : ''}.`);
+  };
+  input.click();
+}
+
+function parseICS(text) {
+  const unfolded = text
+    .replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    .split('\n')
+    .reduce((acc, line) => {
+      if ((line.startsWith(' ') || line.startsWith('\t')) && acc.length) {
+        acc[acc.length - 1] += line.slice(1);
+      } else {
+        acc.push(line);
+      }
+      return acc;
+    }, []);
+
+  const imported = [];
+  let inEvent = false;
+  let current = {};
+
+  for (const line of unfolded) {
+    if (line === 'BEGIN:VEVENT') { inEvent = true; current = {}; continue; }
+    if (line === 'END:VEVENT') {
+      if (inEvent && current.date && current.title) {
+        imported.push({ ...current, id: Date.now().toString() + Math.random().toString(36).slice(2) });
+      }
+      inEvent = false;
+      continue;
+    }
+    if (!inEvent) continue;
+
+    const colonIdx = line.indexOf(':');
+    if (colonIdx === -1) continue;
+    const rawKey = line.slice(0, colonIdx).toUpperCase();
+    const val = line.slice(colonIdx + 1);
+
+    if (rawKey === 'SUMMARY') {
+      current.title = val.replace(/\\n/g, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\');
+    } else if (rawKey === 'DESCRIPTION') {
+      current.notes = val.replace(/\\n/g, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\');
+    } else if (rawKey === 'UID') {
+      current.icsUid = val;
+    } else if (rawKey.startsWith('DTSTART')) {
+      const parsed = parseICSDate(val);
+      if (parsed) { current.date = parsed.date; if (parsed.time) current.time = parsed.time; }
+    } else if (rawKey.startsWith('DTEND')) {
+      const parsed = parseICSDate(val);
+      if (parsed && !parsed.time) {
+        // all-day DTEND is exclusive — subtract 1 day
+        const inclusive = addDaysToDate(parsed.date, -1);
+        if (inclusive !== current.date) current.endDate = inclusive;
+      } else if (parsed && parsed.time) {
+        if (parsed.date !== current.date) current.endDate = parsed.date;
+      }
+    }
+  }
+
+  return imported;
+}
+
+function parseICSDate(val) {
+  const clean = val.replace('Z', '');
+  if (clean.length === 8) {
+    return { date: `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}` };
+  }
+  if (clean.length >= 15 && clean[8] === 'T') {
+    return {
+      date: `${clean.slice(0, 4)}-${clean.slice(4, 6)}-${clean.slice(6, 8)}`,
+      time: `${clean.slice(9, 11)}:${clean.slice(11, 13)}`
+    };
+  }
+  return null;
+}
+
+// ── Outlook Calendar ──────────────────────────────────────────────────────────
+
+function isOutlookConnected() {
+  return !!getOutlookTokens()?.refresh_token;
+}
+
+function getOutlookTokens() {
+  const raw = localStorage.getItem('outlook_tokens');
+  return raw ? JSON.parse(raw) : null;
+}
+
+function saveOutlookTokens(tokens) {
+  if (tokens.expires_in) tokens.expires_at = Date.now() + tokens.expires_in * 1000;
+  localStorage.setItem('outlook_tokens', JSON.stringify(tokens));
+}
+
+function disconnectOutlook() {
+  localStorage.removeItem('outlook_tokens');
+  localStorage.removeItem('outlook_code_verifier');
+}
+
+async function getValidOutlookToken() {
+  const tokens = getOutlookTokens();
+  if (!tokens) return null;
+  if (Date.now() < (tokens.expires_at || 0) - 60000) return tokens.access_token;
+  return await refreshOutlookToken();
+}
+
+async function refreshOutlookToken() {
+  const tokens = getOutlookTokens();
+  if (!tokens?.refresh_token) return null;
+  const response = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: MICROSOFT_CLIENT_ID,
+      refresh_token: tokens.refresh_token,
+      grant_type: 'refresh_token',
+      scope: MICROSOFT_SCOPES
+    })
+  });
+  const newTokens = await response.json();
+  saveOutlookTokens({ ...tokens, ...newTokens });
+  return newTokens.access_token;
+}
+
+async function startOutlookAuth() {
+  const codeVerifier = generateCodeVerifier();
+  const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+  // Tell the Rust server to handle the token exchange when the callback arrives.
+  // This avoids CORS restrictions on the Microsoft token endpoint.
+  await fetch('http://localhost:8642/oauth/setup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: MICROSOFT_CLIENT_ID,
+      code_verifier: codeVerifier,
+      redirect_uri: MICROSOFT_REDIRECT_URI,
+      scope: MICROSOFT_SCOPES,
+    })
+  });
+
+  const params = new URLSearchParams({
+    client_id: MICROSOFT_CLIENT_ID,
+    redirect_uri: MICROSOFT_REDIRECT_URI,
+    response_type: 'code',
+    scope: MICROSOFT_SCOPES,
+    code_challenge: codeChallenge,
+    code_challenge_method: 'S256',
+    response_mode: 'query'
+  });
+
+  const authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?${params.toString()}`;
+  if (window.__TAURI__) {
+    await window.__TAURI__.shell.open(authUrl);
+  } else {
+    window.open(authUrl, '_blank');
+  }
+
+  // Poll for the tokens the Rust server exchanged server-side
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('Auth timeout')), 120000);
+    const checkInterval = setInterval(async () => {
+      try {
+        const response = await fetch('http://localhost:8642/oauth/tokens');
+        if (response.ok) {
+          const tokens = await response.json();
+          clearInterval(checkInterval);
+          clearTimeout(timeout);
+          resolve(tokens);
+        }
+      } catch (e) {}
+    }, 1000);
+  });
+}
+
+async function exchangeOutlookCode(code) {
+  const codeVerifier = localStorage.getItem('outlook_code_verifier');
+  const response = await fetch('https://login.microsoftonline.com/common/oauth2/v2.0/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: MICROSOFT_CLIENT_ID,
+      code,
+      code_verifier: codeVerifier,
+      redirect_uri: MICROSOFT_REDIRECT_URI,
+      grant_type: 'authorization_code',
+      scope: MICROSOFT_SCOPES
+    })
+  });
+  const tokens = await response.json();
+  if (tokens.error) {
+    throw new Error(`Microsoft token error: ${tokens.error} — ${tokens.error_description}`);
+  }
+  saveOutlookTokens(tokens);
+  return tokens;
+}
+
+async function fetchOutlookEvents(year, month) {
+  const token = await getValidOutlookToken();
+  if (!token) return [];
+
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const start = new Date(year, month, 1).toISOString();
+  const end = new Date(year, month + 1, 0, 23, 59, 59).toISOString();
+
+  const response = await fetch(
+    `${GRAPH_BASE}/me/calendarView?startDateTime=${start}&endDateTime=${end}&$select=id,subject,start,end,isAllDay&$top=100&$orderby=start/dateTime`,
+    { headers: { Authorization: `Bearer ${token}`, Prefer: `outlook.timezone="${tz}"` } }
+  );
+  if (!response.ok) return [];
+
+  const data = await response.json();
+  return (data.value || []).map(item => {
+    const startDate = (item.start.date || item.start.dateTime || '').slice(0, 10);
+    let endDate = null;
+    if (item.isAllDay && item.end.date) {
+      // Graph all-day end dates are exclusive — subtract one day
+      const d = new Date(item.end.date + 'T00:00:00');
+      d.setDate(d.getDate() - 1);
+      const inclusiveEnd = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      if (inclusiveEnd !== startDate) endDate = inclusiveEnd;
+    }
+    return {
+      id: item.id,
+      title: item.subject || '(No title)',
+      date: startDate,
+      endDate,
+      time: !item.isAllDay && item.start.dateTime ? item.start.dateTime.slice(11, 16) : '',
+      type: 'outlook',
+      source: 'outlook',
+      outlookId: item.id
+    };
+  });
+}
+
+async function syncOutlookEvents() {
+  try {
+    outlookEvents = await fetchOutlookEvents(viewYear, viewMonth);
+    renderCalendar();
+  } catch (e) {
+    console.error('Outlook sync error:', e);
+  }
+}
+
+async function fetchOutlookUserInfo() {
+  const token = await getValidOutlookToken();
+  if (!token) return;
+  try {
+    const res = await fetch(`${GRAPH_BASE}/me?$select=mail,userPrincipalName`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const email = data.mail || data.userPrincipalName;
+      if (email) localStorage.setItem('outlook_user_email', email);
+    }
+  } catch (e) {}
+}
+
+async function initOutlookCalendar() {
+  outlookConnected = isOutlookConnected();
+  if (outlookConnected) {
+    await fetchOutlookUserInfo();
+    await syncOutlookEvents();
   }
 }
 
@@ -1758,6 +2148,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   loadTheme();
   initGoogleCalendar();
+  initOutlookCalendar();
   fetchWeather();
   setTimeout(() => restoreWindowPosition(), 100);
 });
@@ -1837,8 +2228,8 @@ function loadTheme() {
 async function showContextMenu(x, y) {
   closeContextMenu();
 
-  const autostartOn = await isAutostartEnabled();
-  const alwaysOnTopOn = await isAlwaysOnTop();
+  Object.keys(contextMenuState).forEach(k => { contextMenuState[k] = false; });
+  const [autostartOn, alwaysOnTopOn] = await Promise.all([isAutostartEnabled(), isAlwaysOnTop()]);
   const currentTheme = localStorage.getItem('calendar_theme') || 'default';
 
   const menu = document.createElement('div');
@@ -1847,243 +2238,283 @@ async function showContextMenu(x, y) {
   menu.style.left = x + 'px';
   menu.style.top = y + 'px';
 
-  // Theme section
-  const themeLabel = document.createElement('div');
-  themeLabel.className = 'context-menu-label';
-  themeLabel.textContent = 'Theme';
-  menu.appendChild(themeLabel);
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-  const themeOptions = [
-    { id: 'default', label: 'Default', color: '#FAF7F2', border: '#ccc' },
-    { id: 'dark', label: 'Gruvbox Dark', color: '#282828', border: '#A89984' },
-    { id: 'warm', label: 'Gruvbox Light', color: '#F9F5D7', border: '#665C54' },
-    { id: 'cool', label: 'Cool', color: '#F0F4FA', border: '#6a9ad4' },
-  ];
-
-  themeOptions.forEach(t => {
-    const item = document.createElement('div');
-    item.className = 'context-menu-item';
-    item.innerHTML = `
-      <span>
-        <span class="theme-dot" style="background:${t.color}; border: 1px solid ${t.border}"></span>
-        ${t.label}
-      </span>
-      ${currentTheme === t.id ? '<span class="check">✓</span>' : ''}
-    `;
-    item.onclick = () => {
-      applyTheme(t.id);
-      closeContextMenu();
-    };
-    menu.appendChild(item);
-  });
-
-  // Divider
-  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
-
-  // Settings section
-  const settingsLabel = document.createElement('div');
-  settingsLabel.className = 'context-menu-label';
-  settingsLabel.textContent = 'Settings';
-  menu.appendChild(settingsLabel);
-
-  const autostartItem = document.createElement('div');
-  autostartItem.className = 'context-menu-item';
-  autostartItem.innerHTML = `
-    <span>Launch on startup</span>
-    ${autostartOn ? '<span class="check">✓</span>' : ''}
-  `;
-  autostartItem.onclick = async () => {
-    if (autostartOn) await disableAutostart();
-    else await enableAutostart();
-    closeContextMenu();
-  };
-  menu.appendChild(autostartItem);
-
-  const alwaysOnTopItem = document.createElement('div');
-  alwaysOnTopItem.className = 'context-menu-item';
-  alwaysOnTopItem.innerHTML = `
-    <span>Always on top</span>
-    ${alwaysOnTopOn ? '<span class="check">✓</span>' : ''}
-  `;
-  alwaysOnTopItem.onclick = async () => {
-    await setAlwaysOnTop(!alwaysOnTopOn);
-    closeContextMenu();
-  };
-  menu.appendChild(alwaysOnTopItem);
-
-  const clockFormatItem = document.createElement('div');
-  clockFormatItem.className = 'context-menu-item';
-  clockFormatItem.innerHTML = `
-    <span>Clock format</span>
-    <span style="color:var(--text-tertiary);font-size:11px">${clockSettings.format === '24h' ? '24h' : '12h'}</span>
-  `;
-  clockFormatItem.onclick = () => {
-    clockSettings.format = clockSettings.format === '24h' ? '12h' : '24h';
-    localStorage.setItem('clock_settings', JSON.stringify(clockSettings));
-    updateClock();
-    closeContextMenu();
-  };
-  menu.appendChild(clockFormatItem);
-
-  const miniCalItem = document.createElement('div');
-  miniCalItem.className = 'context-menu-item';
-  miniCalItem.innerHTML = `
-    <span>Mini calendar</span>
-    <span style="font-size:10px;color:var(--text-tertiary)">Shift+M</span>
-  `;
-  miniCalItem.onclick = () => {
-    if (miniCalActive) switchToMiniOff();
-    else switchToMini();
-    closeContextMenu();
-  };
-  menu.appendChild(miniCalItem);
-
-  // Divider
-  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
-
-  // Google Calendar section
-  const googleLabel = document.createElement('div');
-  googleLabel.className = 'context-menu-label';
-  googleLabel.textContent = 'Google Calendar';
-  menu.appendChild(googleLabel);
-
-  const googleItem = document.createElement('div');
-  googleItem.className = 'context-menu-item';
-  googleItem.innerHTML = `
-    <span>${googleConnected ? 'Disconnect Google' : 'Connect Google Calendar'}</span>
-    ${googleConnected ? '<span class="check">✓</span>' : ''}
-  `;
-  googleItem.onclick = async () => {
-    if (googleConnected) {
-      disconnectGoogle();
-      googleEvents = [];
-      googleConnected = false;
-      renderCalendar();
-    } else {
-      try {
-        const code = await startGoogleAuth();
-        await exchangeCodeForTokens(code);
-        googleConnected = true;
-        await syncGoogleEvents();
-      } catch (e) {
-        console.error('Google auth error:', e);
-      }
-    }
-    closeContextMenu();
-  };
-  menu.appendChild(googleItem);
-
-  if (googleConnected) {
-    const syncItem = document.createElement('div');
-    syncItem.className = 'context-menu-item';
-    syncItem.innerHTML = '<span>Sync now</span>';
-    syncItem.onclick = async () => {
-      await syncGoogleEvents();
-      closeContextMenu();
-    };
-    menu.appendChild(syncItem);
+  function addDivider() {
+    menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
   }
 
-  // Divider
-  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
-
-  // Holidays section
-  const holidayLabel = document.createElement('div');
-  holidayLabel.className = 'context-menu-label';
-  holidayLabel.textContent = 'Holidays';
-  menu.appendChild(holidayLabel);
-
-  const countries = [
-    { code: 'US', name: 'United States' },
-    { code: 'CA', name: 'Canada' },
-    { code: 'UK', name: 'United Kingdom' },
-    { code: 'AU', name: 'Australia' },
-  ];
-
-  countries.forEach(country => {
+  function makeItem(html, onclick, danger = false) {
     const item = document.createElement('div');
-    item.className = 'context-menu-item';
-    const isSelected = selectedCountries.includes(country.code);
-    item.innerHTML = `
-      <span>${country.name}</span>
-      ${isSelected ? '<span class="check">✓</span>' : ''}
-    `;
-    item.onclick = () => {
-      if (isSelected) {
-        selectedCountries = selectedCountries.filter(c => c !== country.code);
-      } else {
-        selectedCountries.push(country.code);
+    item.className = 'context-menu-item' + (danger ? ' danger' : '');
+    item.innerHTML = html;
+    if (onclick) item.onclick = onclick;
+    return item;
+  }
+
+  function makeSection(key, label, buildFn) {
+    const wrap = document.createElement('div');
+    const header = document.createElement('div');
+    header.className = 'context-menu-section-header';
+    const lbl = document.createElement('span');
+    lbl.textContent = label;
+    const arrow = document.createElement('span');
+    arrow.className = 'context-menu-section-toggle';
+    arrow.textContent = contextMenuState[key] ? '▾' : '▸';
+    header.appendChild(lbl);
+    header.appendChild(arrow);
+    const body = document.createElement('div');
+    body.className = 'context-menu-section-body' + (contextMenuState[key] ? ' open' : '');
+    buildFn(body);
+    header.onclick = (e) => {
+      e.stopPropagation();
+      const wasOpen = body.classList.contains('open');
+      // Collapse all sections
+      menu.querySelectorAll('.context-menu-section-body').forEach(b => b.classList.remove('open'));
+      menu.querySelectorAll('.context-menu-section-toggle').forEach(a => a.textContent = '▸');
+      Object.keys(contextMenuState).forEach(k => { contextMenuState[k] = false; });
+      // Open this one unless it was already open (click again to collapse)
+      if (!wasOpen) {
+        body.classList.add('open');
+        arrow.textContent = '▾';
+        contextMenuState[key] = true;
       }
-      localStorage.setItem('selected_countries', JSON.stringify(selectedCountries));
-      syncHolidays();
-      closeContextMenu();
     };
-    menu.appendChild(item);
-  });
+    wrap.appendChild(header);
+    wrap.appendChild(body);
+    return wrap;
+  }
 
-  // Divider
-  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
+  // ── Theme ─────────────────────────────────────────────────────────────────
+  menu.appendChild(makeSection('theme', 'Theme', body => {
+    [
+      { id: 'default', label: 'Default',       color: '#FAF7F2', border: '#ccc' },
+      { id: 'dark',    label: 'Gruvbox Dark',  color: '#282828', border: '#A89984' },
+      { id: 'warm',    label: 'Gruvbox Light', color: '#F9F5D7', border: '#665C54' },
+      { id: 'cool',    label: 'Cool',          color: '#F0F4FA', border: '#6a9ad4' },
+    ].forEach(t => {
+      body.appendChild(makeItem(`
+        <span>
+          <span class="theme-dot" style="background:${t.color};border:1px solid ${t.border}"></span>
+          ${t.label}
+        </span>
+        ${currentTheme === t.id ? '<span class="check">✓</span>' : ''}
+      `, () => { applyTheme(t.id); closeContextMenu(); }));
+    });
+  }));
 
-  // Weather section
-  const weatherItem = document.createElement('div');
-  weatherItem.className = 'context-menu-item';
-  weatherItem.innerHTML = `
-    <span>Weather</span>
-    <span style="color:var(--text-tertiary); font-size:11px">›</span>
-  `;
-  weatherItem.onclick = (e) => {
-    e.stopPropagation();
-    showWeatherSubmenu(weatherItem);
-  };
-  menu.appendChild(weatherItem);
+  addDivider();
 
-  // Divider
-  menu.appendChild(Object.assign(document.createElement('div'), { className: 'context-menu-divider' }));
+  // ── Settings ──────────────────────────────────────────────────────────────
+  menu.appendChild(makeSection('settings', 'Settings', body => {
+    body.appendChild(makeItem(
+      `<span>Launch on startup</span>${autostartOn ? '<span class="check">✓</span>' : ''}`,
+      async () => { if (autostartOn) await disableAutostart(); else await enableAutostart(); closeContextMenu(); }
+    ));
+    body.appendChild(makeItem(
+      `<span>Always on top</span>${alwaysOnTopOn ? '<span class="check">✓</span>' : ''}`,
+      async () => { await setAlwaysOnTop(!alwaysOnTopOn); closeContextMenu(); }
+    ));
+    body.appendChild(makeItem(
+      `<span>Clock format</span><span style="color:var(--text-tertiary);font-size:11px">${clockSettings.format === '24h' ? '24h' : '12h'}</span>`,
+      () => {
+        clockSettings.format = clockSettings.format === '24h' ? '12h' : '24h';
+        localStorage.setItem('clock_settings', JSON.stringify(clockSettings));
+        updateClock();
+        closeContextMenu();
+      }
+    ));
+    body.appendChild(makeItem(
+      `<span>Mini calendar</span><span style="font-size:10px;color:var(--text-tertiary)">Shift+M</span>`,
+      () => { if (miniCalActive) switchToMiniOff(); else switchToMini(); closeContextMenu(); }
+    ));
+    body.appendChild(makeItem(
+      `<span>Import .ics</span>`,
+      () => { importICS(); closeContextMenu(); }
+    ));
+    body.appendChild(makeItem(
+      `<span>Export .ics</span>`,
+      async () => { await exportICS(); closeContextMenu(); }
+    ));
+  }));
 
-  // About
-  const aboutItem = document.createElement('div');
-  aboutItem.className = 'context-menu-item';
-  aboutItem.innerHTML = '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.6.0</span>';
-  aboutItem.onclick = () => closeContextMenu();
-  menu.appendChild(aboutItem);
+  addDivider();
 
-  // Close app
-  const closeItem = document.createElement('div');
-  closeItem.className = 'context-menu-item danger';
-  closeItem.textContent = 'Close';
-  closeItem.onclick = async () => {
-    if (window.__TAURI__) {
-      await window.__TAURI__.window.getCurrentWindow().close();
+  // ── External Calendars ────────────────────────────────────────────────────
+  menu.appendChild(makeSection('calendars', 'External Calendars', body => {
+    const googleEmail  = localStorage.getItem('google_user_email');
+    const googleName   = googleEmail  ? googleEmail.split('@')[0]  : null;
+    const outlookEmail = localStorage.getItem('outlook_user_email');
+    const outlookName  = outlookEmail ? outlookEmail.split('@')[0] : null;
+
+    // Google
+    const gLabel = Object.assign(document.createElement('div'), { className: 'context-menu-label' });
+    gLabel.textContent = 'Google';
+    body.appendChild(gLabel);
+
+    if (googleConnected) {
+      if (googleName) body.appendChild(makeItem(
+        `<span style="color:var(--text-secondary);font-size:11px">${googleName}</span><span class="check">✓</span>`
+      ));
+      body.appendChild(makeItem(
+        `<span>Sync</span><span style="color:var(--text-tertiary)">↻</span>`,
+        async () => { await syncGoogleEvents(); closeContextMenu(); }
+      ));
+      body.appendChild(makeItem(`<span>Disconnect</span>`, () => {
+        disconnectGoogle(); googleEvents = []; googleConnected = false;
+        stopGoogleSyncTimer();
+        localStorage.removeItem('google_user_email');
+        renderCalendar(); closeContextMenu();
+      }, true));
+    } else {
+      body.appendChild(makeItem(`<span>Connect Google Calendar</span>`, async () => {
+        try {
+          const code = await startGoogleAuth();
+          await exchangeCodeForTokens(code);
+          googleConnected = true;
+          await fetchGoogleUserInfo();
+          await syncGoogleEvents();
+          startGoogleSyncTimer();
+        } catch (e) { console.error('Google auth error:', e); }
+        closeContextMenu();
+      }));
     }
-  };
-  menu.appendChild(closeItem);
+
+    // Outlook
+    const oLabel = Object.assign(document.createElement('div'), { className: 'context-menu-label' });
+    oLabel.textContent = 'Outlook';
+    oLabel.style.marginTop = '4px';
+    body.appendChild(oLabel);
+
+    if (outlookConnected) {
+      if (outlookName) body.appendChild(makeItem(
+        `<span style="color:var(--text-secondary);font-size:11px">${outlookName}</span><span class="check">✓</span>`
+      ));
+      body.appendChild(makeItem(
+        `<span>Sync</span><span style="color:var(--text-tertiary)">↻</span>`,
+        async () => { await syncOutlookEvents(); closeContextMenu(); }
+      ));
+      body.appendChild(makeItem(`<span>Disconnect</span>`, () => {
+        disconnectOutlook(); outlookEvents = []; outlookConnected = false;
+        localStorage.removeItem('outlook_user_email');
+        renderCalendar(); closeContextMenu();
+      }, true));
+    } else {
+      body.appendChild(makeItem(`<span>Connect Outlook Calendar</span>`, async () => {
+        if (!MICROSOFT_CLIENT_ID) { alert('Add your Azure app Client ID to config.js first.'); closeContextMenu(); return; }
+        try {
+          const tokens = await startOutlookAuth();
+          if (tokens.error) throw new Error(`${tokens.error}: ${tokens.error_description}`);
+          saveOutlookTokens(tokens);
+          outlookConnected = true;
+          await fetchOutlookUserInfo();
+          await syncOutlookEvents();
+        } catch (e) {
+          console.error('Outlook auth error:', e);
+          alert(`Outlook connection failed:\n${e.message}`);
+        }
+        closeContextMenu();
+      }));
+    }
+  }));
+
+  addDivider();
+
+  // ── Holidays ──────────────────────────────────────────────────────────────
+  menu.appendChild(makeSection('holidays', 'Holidays', body => {
+    [
+      { code: 'US', name: 'United States' },
+      { code: 'CA', name: 'Canada' },
+      { code: 'UK', name: 'United Kingdom' },
+      { code: 'AU', name: 'Australia' },
+    ].forEach(country => {
+      const isSelected = selectedCountries.includes(country.code);
+      body.appendChild(makeItem(
+        `<span>${country.name}</span>${isSelected ? '<span class="check">✓</span>' : ''}`,
+        () => {
+          if (isSelected) selectedCountries = selectedCountries.filter(c => c !== country.code);
+          else selectedCountries.push(country.code);
+          localStorage.setItem('selected_countries', JSON.stringify(selectedCountries));
+          syncHolidays(); closeContextMenu();
+        }
+      ));
+    });
+  }));
+
+  addDivider();
+
+  // ── Weather ───────────────────────────────────────────────────────────────
+  menu.appendChild(makeSection('weather', 'Weather', body => {
+    body.appendChild(makeItem(
+      `<span>Show weather</span>${weatherSettings.enabled ? '<span class="check">✓</span>' : ''}`,
+      () => {
+        weatherSettings.enabled = !weatherSettings.enabled;
+        saveWeatherSettings();
+        if (weatherSettings.enabled) fetchWeather(); else updateWeatherDisplay();
+        closeContextMenu();
+      }
+    ));
+    body.appendChild(makeItem(
+      `<span>Units</span><span style="color:var(--text-tertiary);font-size:11px">${weatherSettings.units === 'F' ? '°F' : '°C'}</span>`,
+      () => {
+        weatherSettings.units = weatherSettings.units === 'F' ? 'C' : 'F';
+        saveWeatherSettings(); localStorage.removeItem('weather_cache');
+        fetchWeather(); closeContextMenu();
+      }
+    ));
+
+    const locLabel = Object.assign(document.createElement('div'), { className: 'context-menu-label' });
+    locLabel.textContent = 'Location';
+    body.appendChild(locLabel);
+
+    const locWrapper = document.createElement('div');
+    locWrapper.style.padding = '4px 10px';
+    locWrapper.onclick = e => e.stopPropagation();
+
+    const locInput = document.createElement('input');
+    locInput.type = 'text';
+    locInput.value = weatherSettings.location;
+    locInput.placeholder = 'City or zip code';
+    locInput.className = 'day-todo-input';
+    locInput.style.fontSize = '11px';
+    locInput.onmousedown = e => e.stopPropagation();
+    locInput.onclick = e => e.stopPropagation();
+    locInput.onkeydown = e => {
+      if (e.key === 'Enter') {
+        weatherSettings.location = locInput.value.trim();
+        saveWeatherSettings(); localStorage.removeItem('weather_cache');
+        fetchWeather(); closeContextMenu();
+      }
+    };
+    locWrapper.appendChild(locInput);
+    body.appendChild(locWrapper);
+  }));
+
+  addDivider();
+
+  // ── About & Close (always visible) ───────────────────────────────────────
+  menu.appendChild(makeItem(
+    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.6.0</span>',
+    () => closeContextMenu()
+  ));
+  menu.appendChild(makeItem('Close', async () => {
+    if (window.__TAURI__) await window.__TAURI__.window.getCurrentWindow().close();
+  }, true));
 
   document.getElementById('widget').appendChild(menu);
 
-  // Smart positioning
   requestAnimationFrame(() => {
     const menuRect = menu.getBoundingClientRect();
     const widgetRect = document.getElementById('widget').getBoundingClientRect();
-    
-    let newTop = y;
-    let newLeft = x;
-
-    if (menuRect.bottom > widgetRect.bottom) {
-      newTop = y - menu.offsetHeight;
-    }
-    if (menuRect.right > widgetRect.right) {
-      newLeft = x - menu.offsetWidth;
-    }
-    
-    // Don't let it go above the top of the widget
+    let newTop = y, newLeft = x;
+    if (menuRect.bottom > widgetRect.bottom) newTop = y - menu.offsetHeight;
+    if (menuRect.right > widgetRect.right) newLeft = x - menu.offsetWidth;
     if (newTop < 0) newTop = 0;
     if (newLeft < 0) newLeft = 0;
-
     menu.style.top = newTop + 'px';
     menu.style.left = newLeft + 'px';
   });
 
-  // Close on click outside
   setTimeout(() => {
     document.addEventListener('click', closeContextMenu, { once: true });
   }, 50);
@@ -2092,8 +2523,6 @@ async function showContextMenu(x, y) {
 function closeContextMenu() {
   const existing = document.getElementById('context-menu');
   if (existing) existing.remove();
-  const subexisting = document.getElementById('weather-submenu');
-  if (subexisting) subexisting.remove();
 }
 
 function updateWeatherDisplay() {
@@ -2138,80 +2567,3 @@ function updateWeatherDisplay() {
   }
 }
 
-function showWeatherSubmenu(anchor) {
-  const existing = document.getElementById('weather-submenu');
-  if (existing) { existing.remove(); return; }
-
-  const submenu = document.createElement('div');
-  submenu.className = 'context-menu';
-  submenu.id = 'weather-submenu';
-  submenu.onclick = e => e.stopPropagation();
-
-  const enableItem = document.createElement('div');
-  enableItem.className = 'context-menu-item';
-  enableItem.innerHTML = `
-    <span>Show weather</span>
-    ${weatherSettings.enabled ? '<span class="check">✓</span>' : ''}
-  `;
-  enableItem.onclick = () => {
-    weatherSettings.enabled = !weatherSettings.enabled;
-    saveWeatherSettings();
-    if (weatherSettings.enabled) fetchWeather();
-    else updateWeatherDisplay();
-    closeContextMenu();
-  };
-  submenu.appendChild(enableItem);
-
-  const unitsItem = document.createElement('div');
-  unitsItem.className = 'context-menu-item';
-  unitsItem.innerHTML = `
-    <span>Units</span>
-    <span style="color:var(--text-tertiary);font-size:11px">${weatherSettings.units === 'F' ? '°F' : '°C'}</span>
-  `;
-  unitsItem.onclick = () => {
-    weatherSettings.units = weatherSettings.units === 'F' ? 'C' : 'F';
-    saveWeatherSettings();
-    localStorage.removeItem('weather_cache');
-    fetchWeather();
-    closeContextMenu();
-  };
-  submenu.appendChild(unitsItem);
-
-  const locationLabel = document.createElement('div');
-  locationLabel.className = 'context-menu-label';
-  locationLabel.textContent = 'Location';
-  submenu.appendChild(locationLabel);
-
-  const locationWrapper = document.createElement('div');
-  locationWrapper.style.padding = '4px 10px';
-  locationWrapper.onclick = e => e.stopPropagation();
-
-  const locationInput = document.createElement('input');
-  locationInput.type = 'text';
-  locationInput.value = weatherSettings.location;
-  locationInput.placeholder = 'City or zip code';
-  locationInput.className = 'day-todo-input';
-  locationInput.style.fontSize = '11px';
-  locationInput.onmousedown = e => e.stopPropagation();
-  locationInput.onclick = e => e.stopPropagation();
-  locationInput.onkeydown = (e) => {
-    if (e.key === 'Enter') {
-      weatherSettings.location = locationInput.value.trim();
-      saveWeatherSettings();
-      localStorage.removeItem('weather_cache');
-      fetchWeather();
-      closeContextMenu();
-    }
-  };
-  locationWrapper.appendChild(locationInput);
-  submenu.appendChild(locationWrapper);
-
-  const anchorRect = anchor.getBoundingClientRect();
-  const widgetRect = document.getElementById('widget').getBoundingClientRect();
-  submenu.style.position = 'absolute';
-  submenu.style.top = (anchorRect.top - widgetRect.top) + 'px';
-  submenu.style.left = (anchorRect.left - widgetRect.left - 180) + 'px';
-
-  document.getElementById('widget').appendChild(submenu);
-  setTimeout(() => locationInput.focus(), 50);
-}

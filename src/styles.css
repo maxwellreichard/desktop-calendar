@@ -53,6 +53,12 @@
   --pill-google-border: rgba(66, 133, 244, 0.25);
   --pill-google-time: rgba(26, 86, 176, 0.6);
 
+  /* Outlook pills */
+  --pill-outlook-bg: rgba(0, 120, 212, 0.12);
+  --pill-outlook-color: #0067b8;
+  --pill-outlook-border: rgba(0, 120, 212, 0.22);
+  --pill-outlook-time: rgba(0, 103, 184, 0.6);
+
   /* Holiday pills */
   --pill-holiday-bg: rgba(0, 0, 0, 0.06);
   --pill-holiday-color: rgba(0, 0, 0, 0.45);
@@ -114,6 +120,12 @@
   --pill-google-border: rgba(131, 165, 152, 0.35);
   --pill-google-time: rgba(131, 165, 152, 0.6);
 
+  /* Outlook */
+  --pill-outlook-bg: rgba(100, 160, 220, 0.2);
+  --pill-outlook-color: #7EC8E3;
+  --pill-outlook-border: rgba(100, 160, 220, 0.35);
+  --pill-outlook-time: rgba(126, 200, 227, 0.6);
+
   /* Holiday */
   --pill-holiday-bg: rgba(168, 153, 132, 0.15);
   --pill-holiday-color: rgba(235, 219, 178, 0.45);
@@ -174,6 +186,12 @@
   --pill-google-border: rgba(7, 102, 120, 0.25);
   --pill-google-time: rgba(7, 102, 120, 0.55);
 
+  /* Outlook */
+  --pill-outlook-bg: rgba(0, 90, 158, 0.12);
+  --pill-outlook-color: #005a9e;
+  --pill-outlook-border: rgba(0, 90, 158, 0.22);
+  --pill-outlook-time: rgba(0, 90, 158, 0.55);
+
   /* Holiday */
   --pill-holiday-bg: rgba(102, 92, 84, 0.1);
   --pill-holiday-color: rgba(60, 56, 54, 0.45);
@@ -228,6 +246,12 @@
   --pill-personal-time: rgba(42, 58, 158, 0.6);
   --pill-work-time: rgba(8, 64, 90, 0.6);
   --pill-reminder-time: rgba(8, 58, 106, 0.6);
+
+  /* Outlook */
+  --pill-outlook-bg: rgba(0, 100, 200, 0.12);
+  --pill-outlook-color: #0064c8;
+  --pill-outlook-border: rgba(0, 100, 200, 0.22);
+  --pill-outlook-time: rgba(0, 100, 200, 0.6);
 }
 
 * {
@@ -387,6 +411,7 @@ body {
 .legend-dot.work { background: rgba(0, 140, 90, 0.8); }
 .legend-dot.reminder { background: rgba(180, 110, 0, 0.8); }
 .legend-dot.google { background: rgba(66, 133, 244, 0.8); }
+.legend-dot.outlook { background: rgba(0, 120, 212, 0.8); }
 .legend-dot.holiday { background: rgba(0, 0, 0, 0.3); }
 
 /* View container */
@@ -506,6 +531,7 @@ body {
 .event-pill.work { background: var(--pill-work-bg); color: var(--pill-work-color); }
 .event-pill.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); }
 .event-pill.google { background: var(--pill-google-bg); color: var(--pill-google-color); }
+.event-pill.outlook { background: var(--pill-outlook-bg); color: var(--pill-outlook-color); }
 .event-pill.holiday { background: var(--pill-holiday-bg); color: var(--pill-holiday-color); }
 
 
@@ -527,6 +553,7 @@ body {
 .day-event-pill.work { background: var(--pill-work-bg); border: 1px solid var(--pill-work-border); }
 .day-event-pill.reminder { background: var(--pill-reminder-bg); border: 1px solid var(--pill-reminder-border); }
 .day-event-pill.google { background: var(--pill-google-bg); border: 1px solid var(--pill-google-border); }
+.day-event-pill.outlook { background: var(--pill-outlook-bg); border: 1px solid var(--pill-outlook-border); }
 .day-event-pill.holiday { background: var(--pill-holiday-bg); border: 1px solid var(--pill-holiday-border); }
 
 
@@ -534,6 +561,7 @@ body {
 .day-event-pill.work .day-event-title { color: var(--pill-work-color); }
 .day-event-pill.reminder .day-event-title { color: var(--pill-reminder-color); }
 .day-event-pill.google .day-event-title { color: var(--pill-google-color); }
+.day-event-pill.outlook .day-event-title { color: var(--pill-outlook-color); }
 .day-event-pill.holiday .day-event-title { color: var(--pill-holiday-color); }
 
 
@@ -541,6 +569,7 @@ body {
 .day-event-pill.work .day-event-time { color: var(--pill-work-time); }
 .day-event-pill.reminder .day-event-time { color: var(--pill-reminder-time); }
 .day-event-pill.google .day-event-time { color: var(--pill-google-time); }
+.day-event-pill.outlook .day-event-time { color: var(--pill-outlook-time); }
 .day-event-pill.holiday .day-event-time { color: var(--pill-holiday-time); }
 
 
@@ -656,6 +685,7 @@ body {
 .week-multiday-bar.work { background: var(--pill-work-bg); color: var(--pill-work-color); border: 1px solid var(--pill-work-border); }
 .week-multiday-bar.reminder { background: var(--pill-reminder-bg); color: var(--pill-reminder-color); border: 1px solid var(--pill-reminder-border); }
 .week-multiday-bar.google { background: var(--pill-google-bg); color: var(--pill-google-color); border: 1px solid var(--pill-google-border); }
+.week-multiday-bar.outlook { background: var(--pill-outlook-bg); color: var(--pill-outlook-color); border: 1px solid var(--pill-outlook-border); }
 
 .week-multiday-bar.continues-left { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .week-multiday-bar.continues-right { border-top-right-radius: 0; border-bottom-right-radius: 0; }
@@ -1087,6 +1117,36 @@ body {
 }
 
 /* Context menu */
+.context-menu-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  user-select: none;
+}
+
+.context-menu-section-header:hover {
+  background: var(--bg-cell-hover);
+}
+
+.context-menu-section-toggle {
+  font-size: 9px;
+  color: var(--text-tertiary);
+}
+
+.context-menu-section-body {
+  display: none;
+}
+
+.context-menu-section-body.open {
+  display: block;
+}
+
 .context-menu {
   position: absolute;
   background: var(--bg-widget);
