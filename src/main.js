@@ -1548,6 +1548,24 @@ async function syncGoogleEvents() {
   }
 }
 
+// ── Auto-update ───────────────────────────────────────────────────────────────
+
+async function checkForUpdates(silent = true) {
+  if (!window.__TAURI__) return;
+  try {
+    const update = await window.__TAURI__.updater.check();
+    if (update?.available) {
+      const yes = confirm(`Version ${update.version} is available.\n\nInstall now? The app will restart when complete.`);
+      if (yes) await update.downloadAndInstall();
+    } else if (!silent) {
+      alert('You\'re up to date!');
+    }
+  } catch (e) {
+    if (!silent) alert('Update check failed. Please try again later.');
+    console.error('Update check error:', e);
+  }
+}
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 
 let notificationsEnabled = localStorage.getItem('notifications_enabled') !== 'false';
@@ -2297,6 +2315,7 @@ window.addEventListener('DOMContentLoaded', () => {
   initOutlookCalendar();
   fetchWeather();
   initNotifications();
+  setTimeout(() => checkForUpdates(true), 5000);
   setTimeout(() => restoreWindowPosition(), 100);
 });
 
@@ -2788,6 +2807,10 @@ async function showContextMenu(x, y) {
   menu.appendChild(makeItem(
     '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.2</span>',
     () => closeContextMenu()
+  ));
+  menu.appendChild(makeItem(
+    '<span>Check for updates</span>',
+    async () => { closeContextMenu(); await checkForUpdates(false); }
   ));
   menu.appendChild(makeItem('Close', async () => {
     if (window.__TAURI__) await window.__TAURI__.window.getCurrentWindow().close();

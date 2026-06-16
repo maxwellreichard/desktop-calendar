@@ -22,6 +22,7 @@
     "dialog:allow-save",
     "fs:allow-write-text-file",
     "fs:scope-home-recursive",
-    "notification:default"
+    "notification:default",
+    "updater:default"
   ]
 }
