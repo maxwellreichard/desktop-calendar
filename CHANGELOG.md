@@ -4,6 +4,23 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.3] - 2026-06-16
+
+### Added
+- **Drag to reschedule** — drag any local event pill in month view to a new date
+- **Shift+drag to extend** — Shift+drag an event to turn it into a multi-day event spanning to the target date; ghost shows `↔` indicator while in extend mode
+- **Event search** — Ctrl+F opens a live search overlay; results show type dot, title, recurrence tag, and date; clicking navigates to that month; Esc closes
+- **Undo / Redo** — Ctrl+Z undoes the last event change, Ctrl+Shift+Z redoes it (up to 50 steps)
+- **Bi-weekly recurrence** — new repeat option when creating recurring events
+
+### Fixed
+- Deleted Google Calendar events now removed from in-memory array immediately (no longer appear in search until next sync)
+- Recurring events with all occurrences deleted no longer appear in search results
+- "Delete all future" from the first occurrence now removes the parent event entirely
+- Drag ghost now copies computed pill colors so it matches the active theme correctly
+
+---
+
 ## [0.7.2] - 2026-06-15
 
 ### Added

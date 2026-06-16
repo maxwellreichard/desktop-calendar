@@ -26,6 +26,35 @@ let clockSettings = JSON.parse(localStorage.getItem('clock_settings') || '{"form
 // Recurring
 let monthRecurringEvents = [];
 
+// Undo / Redo
+const undoStack = [];
+const redoStack = [];
+const MAX_HISTORY = 50;
+
+function pushUndo() {
+  undoStack.push(JSON.stringify(events));
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack.length = 0;
+}
+
+async function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(JSON.stringify(events));
+  events = JSON.parse(undoStack.pop());
+  await saveEvents();
+  renderCalendar();
+  syncHolidays();
+}
+
+async function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(JSON.stringify(events));
+  events = JSON.parse(redoStack.pop());
+  await saveEvents();
+  renderCalendar();
+  syncHolidays();
+}
+
 // Holidays
 let holidayEvents = [];
 let selectedCountries = JSON.parse(localStorage.getItem('selected_countries') || '[]');
@@ -288,8 +317,17 @@ function renderCalendar() {
       evs.slice(0, 2).forEach(ev => {
         const pill = document.createElement('div');
         pill.className = 'event-pill ' + (ev.type || 'personal');
-        pill.textContent = (!ev.endDate || ev.date === cellKey) ? ev.title : ' ';
+        const isStartDay = !ev.endDate || ev.date === cellKey;
+        pill.textContent = isStartDay ? ev.title : ' ';
         applyEventColor(pill, ev);
+        const isLocal = events.some(e => e.id === ev.id);
+        if (isLocal && isStartDay && !ev.isRecurring && ev.type !== 'holiday') {
+          pill.classList.add('draggable');
+          pill.onmousedown = (e) => {
+            if (e.button !== 0) return;
+            startEventDrag(ev, pill, e);
+          };
+        }
         cell.appendChild(pill);
       });
       if (evs.length > 2) {
@@ -413,6 +451,7 @@ function openRangeEventModal(startKey, endKey) {
   saveBtn.onclick = async () => {
     const title = titleInput.value.trim();
     if (!title) return;
+    pushUndo();
     events.push({
       id: Date.now().toString(),
       title,
@@ -837,20 +876,25 @@ function toggleEventExpand(pill, ev, key) {
   delBtn.textContent = 'Delete';
   delBtn.onmousedown = e => e.stopPropagation();
   delBtn.onclick = async () => {
+    pushUndo();
     if (ev.isRecurring) {
       // Ask user - delete just this or all future
       const choice = confirm('Delete all future occurrences? Click Cancel to delete just this one.');
       const parentEvent = events.find(e => e.id === ev.recurringParentId);
       if (parentEvent) {
         if (choice) {
-          // Delete all future - set end date to day before this occurrence
-          const prevDay = new Date(ev.date + 'T00:00:00');
-          prevDay.setDate(prevDay.getDate() - 1);
-          const y = prevDay.getFullYear();
-          const m = String(prevDay.getMonth() + 1).padStart(2, '0');
-          const d = String(prevDay.getDate()).padStart(2, '0');
-          parentEvent.recurrence.endType = 'date';
-          parentEvent.recurrence.endDate = `${y}-${m}-${d}`;
+          // If deleting all future from the first occurrence, remove parent entirely
+          if (ev.date === parentEvent.date) {
+            events = events.filter(e => e.id !== parentEvent.id);
+          } else {
+            const prevDay = new Date(ev.date + 'T00:00:00');
+            prevDay.setDate(prevDay.getDate() - 1);
+            const y = prevDay.getFullYear();
+            const m = String(prevDay.getMonth() + 1).padStart(2, '0');
+            const d = String(prevDay.getDate()).padStart(2, '0');
+            parentEvent.recurrence.endType = 'date';
+            parentEvent.recurrence.endDate = `${y}-${m}-${d}`;
+          }
         } else {
           // Delete just this occurrence
           if (!parentEvent.recurrence.exceptions) parentEvent.recurrence.exceptions = {};
@@ -861,6 +905,7 @@ function toggleEventExpand(pill, ev, key) {
     } else {
       if (googleConnected && ev.googleId) {
         await deleteGoogleEvent(ev.googleId);
+        googleEvents = googleEvents.filter(e => e.googleId !== ev.googleId);
       }
       events = events.filter(e => e.id !== ev.id);
       await saveEvents();
@@ -873,6 +918,7 @@ function toggleEventExpand(pill, ev, key) {
   saveBtn.textContent = 'Save';
   saveBtn.onmousedown = e => e.stopPropagation();
   saveBtn.onclick = async () => {
+    pushUndo();
     if (ev.isRecurring) {
       const choice = confirm('Edit all future occurrences? Click Cancel to edit just this one.');
       const parentEvent = events.find(e => e.id === ev.recurringParentId);
@@ -987,12 +1033,13 @@ function openInlineEventForm(key, container) {
   repeatSelect.className = 'day-todo-input';
   repeatSelect.onmousedown = e => e.stopPropagation();
   [
-    { value: 'none', label: 'Does not repeat' },
-    { value: 'daily', label: 'Daily' },
-    { value: 'weekly', label: 'Weekly' },
-    { value: 'monthly', label: 'Monthly' },
-    { value: 'yearly', label: 'Yearly' },
-    { value: 'custom', label: 'Custom interval' },
+    { value: 'none',      label: 'Does not repeat' },
+    { value: 'daily',     label: 'Daily' },
+    { value: 'weekly',    label: 'Weekly' },
+    { value: 'biweekly',  label: 'Bi-weekly' },
+    { value: 'monthly',   label: 'Monthly' },
+    { value: 'yearly',    label: 'Yearly' },
+    { value: 'custom',    label: 'Custom interval' },
   ].forEach(opt => {
     const o = document.createElement('option');
     o.value = opt.value;
@@ -1072,6 +1119,7 @@ function openInlineEventForm(key, container) {
   saveBtn.onclick = async () => {
     const title = titleInput.value.trim();
     if (!title) return;
+    pushUndo();
 
     const newEvent = {
       id: Date.now().toString(),
@@ -1086,9 +1134,10 @@ function openInlineEventForm(key, container) {
 
     // Add recurrence if set
     if (repeatSelect.value !== 'none') {
+      const isBiweekly = repeatSelect.value === 'biweekly';
       newEvent.recurrence = {
-        frequency: repeatSelect.value,
-        interval: repeatSelect.value === 'custom' ? parseInt(customInterval.value) || 1 : 1,
+        frequency: isBiweekly ? 'weekly' : repeatSelect.value,
+        interval: isBiweekly ? 2 : (repeatSelect.value === 'custom' ? parseInt(customInterval.value) || 1 : 1),
         endType: endSelect.value,
         endDate: endSelect.value === 'date' ? endDateInput.value : null,
         endCount: endSelect.value === 'count' ? parseInt(endCountInput.value) || 10 : null,
@@ -1677,6 +1726,261 @@ async function initNotifications() {
   }
   if (!granted) return;
   scheduleNotifications();
+}
+
+// ── Event search ─────────────────────────────────────────────────────────────
+
+function openSearch() {
+  if (document.getElementById('search-overlay')) return;
+
+  const overlay = document.createElement('div');
+  overlay.className = 'search-overlay';
+  overlay.id = 'search-overlay';
+  overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+
+  const box = document.createElement('div');
+  box.className = 'search-box';
+  box.onclick = e => e.stopPropagation();
+
+  const input = document.createElement('input');
+  input.className = 'search-input';
+  input.placeholder = 'Search events...';
+  input.onmousedown = e => e.stopPropagation();
+
+  const results = document.createElement('div');
+  results.className = 'search-results';
+
+  input.oninput = () => {
+    const q = input.value.trim().toLowerCase();
+    results.innerHTML = '';
+    if (!q) return;
+
+    const candidates = [
+      ...events.filter(ev => !ev.isRecurring),
+      ...googleEvents,
+      ...outlookEvents,
+    ].filter(ev => ev.type !== 'holiday');
+
+    const matched = candidates.filter(ev =>
+      ev.title?.toLowerCase().includes(q) || ev.notes?.toLowerCase().includes(q)
+    ).slice(0, 20);
+
+    if (!matched.length) {
+      const empty = document.createElement('div');
+      empty.className = 'search-empty';
+      empty.textContent = 'No events found';
+      results.appendChild(empty);
+      return;
+    }
+
+    matched.forEach(ev => {
+      const isRecurring = !!ev.recurrence;
+      const displayDate = isRecurring ? getNearestOccurrence(ev) : ev.date;
+      if (!displayDate) return; // all occurrences deleted — skip
+
+      const row = document.createElement('div');
+      row.className = 'search-result';
+
+      const dot = document.createElement('div');
+      dot.className = 'search-result-dot';
+      dot.style.background = ev.color || getTypeColor(ev.type);
+
+      const title = document.createElement('div');
+      title.className = 'search-result-title';
+      title.textContent = ev.title;
+
+      const date = document.createElement('div');
+      date.className = 'search-result-date';
+      date.textContent = formatSearchDate(displayDate);
+
+      row.appendChild(dot);
+      row.appendChild(title);
+
+      if (isRecurring) {
+        const tag = document.createElement('div');
+        tag.className = 'search-result-tag';
+        tag.textContent = formatRecurrenceLabel(ev.recurrence);
+        row.appendChild(tag);
+      }
+
+      row.appendChild(date);
+      row.onclick = () => {
+        overlay.remove();
+        const [y, m] = displayDate.split('-').map(Number);
+        viewYear = y;
+        viewMonth = m - 1;
+        renderCalendar();
+        syncHolidays();
+        updateTodayBtn();
+      };
+      results.appendChild(row);
+    });
+  };
+
+  box.appendChild(input);
+  box.appendChild(results);
+  overlay.appendChild(box);
+  document.getElementById('widget').appendChild(overlay);
+  setTimeout(() => input.focus(), 50);
+}
+
+function getNearestOccurrence(event) {
+  const today = localDateStr(new Date());
+  const { frequency, interval = 1, endType, endDate, endCount } = event.recurrence;
+  let current = new Date(event.date + 'T00:00:00');
+  let prev = null;
+  let count = 0;
+  const maxIterations = 3650;
+
+  for (let i = 0; i < maxIterations; i++) {
+    const key = localDateStr(current);
+    if (endType === 'date' && endDate && key > endDate) break;
+    if (endType === 'count' && count >= endCount) break;
+
+    const exceptions = event.recurrence.exceptions || {};
+    if (exceptions[key] !== 'deleted') {
+      if (key >= today) return key;
+      prev = key;
+    }
+
+    const next = new Date(current);
+    switch (frequency) {
+      case 'daily': case 'custom': next.setDate(next.getDate() + interval); break;
+      case 'weekly': next.setDate(next.getDate() + 7 * interval); break;
+      case 'monthly': next.setMonth(next.getMonth() + interval); break;
+      case 'yearly': next.setFullYear(next.getFullYear() + interval); break;
+    }
+    if (next <= current) break;
+    current = next;
+    count++;
+  }
+  return prev; // null if no valid occurrences found at all
+}
+
+function formatRecurrenceLabel(recurrence) {
+  const { frequency, interval = 1 } = recurrence;
+  if (interval === 1) {
+    const map = { daily: 'daily', weekly: 'weekly', monthly: 'monthly', yearly: 'yearly', custom: 'daily' };
+    return `recurring ${map[frequency] || frequency}`;
+  }
+  const unit = { daily: 'day', weekly: 'week', monthly: 'month', yearly: 'year', custom: 'day' }[frequency] || 'day';
+  return `every ${interval} ${unit}${interval !== 1 ? 's' : ''}`;
+}
+
+function getTypeColor(type) {
+  const map = {
+    personal: 'rgba(100, 70, 220, 0.8)',
+    work:     'rgba(0, 140, 90, 0.8)',
+    reminder: 'rgba(180, 110, 0, 0.8)',
+    google:   'rgba(66, 133, 244, 0.8)',
+    outlook:  'rgba(0, 120, 212, 0.8)',
+  };
+  return map[type] || map.personal;
+}
+
+function formatSearchDate(dateStr) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// ── Drag to reschedule ────────────────────────────────────────────────────────
+
+let activeDrag = null;
+
+function startEventDrag(ev, pill, e) {
+  e.preventDefault();
+  e.stopPropagation();
+  const extendMode = e.shiftKey;
+
+  const computed = window.getComputedStyle(pill);
+  const ghost = document.createElement('div');
+  ghost.textContent = extendMode ? `↔ ${ev.title}` : ev.title;
+  ghost.style.cssText = `position:fixed;pointer-events:none;opacity:0.75;z-index:9999;padding:2px 4px;font-size:9px;border-radius:3px;white-space:nowrap;`;
+  ghost.style.backgroundColor = computed.backgroundColor;
+  ghost.style.color = computed.color;
+  ghost.style.border = computed.border;
+  if (extendMode) ghost.style.outline = '2px dashed ' + getComputedStyle(document.getElementById('widget')).getPropertyValue('--accent').trim();
+  document.body.appendChild(ghost);
+  document.body.classList.add('dragging-event');
+  activeDrag = { ev, ghost };
+
+  const move = (me) => {
+    if (!activeDrag) return;
+    ghost.style.left = (me.clientX + 8) + 'px';
+    ghost.style.top = (me.clientY - 10) + 'px';
+    document.querySelectorAll('.day-cell.drag-over').forEach(c => c.classList.remove('drag-over'));
+    const el = document.elementFromPoint(me.clientX, me.clientY);
+    el?.closest('.day-cell[data-date]')?.classList.add('drag-over');
+  };
+
+  const up = async (ue) => {
+    document.removeEventListener('mousemove', move);
+    document.removeEventListener('mouseup', up);
+    if (!activeDrag) return;
+    const { ev, ghost } = activeDrag;
+    activeDrag = null;
+    ghost.remove();
+    document.body.classList.remove('dragging-event');
+    document.querySelectorAll('.day-cell.drag-over').forEach(c => c.classList.remove('drag-over'));
+    const el = document.elementFromPoint(ue.clientX, ue.clientY);
+    const targetCell = el?.closest('.day-cell[data-date]');
+    const targetDate = targetCell?.dataset.date;
+    if (!targetDate || targetDate === ev.date) return;
+    if (extendMode) {
+      await extendEventToDate(ev.id, targetDate);
+    } else {
+      await rescheduleEvent(ev.id, targetDate);
+    }
+  };
+
+  document.addEventListener('mousemove', move);
+  document.addEventListener('mouseup', up);
+}
+
+function getDayDiff(fromDate, toDate) {
+  const from = new Date(fromDate + 'T00:00:00');
+  const to = new Date(toDate + 'T00:00:00');
+  return Math.round((to - from) / (1000 * 60 * 60 * 24));
+}
+
+function shiftDate(dateStr, days) {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+async function extendEventToDate(eventId, targetDate) {
+  const idx = events.findIndex(e => e.id === eventId);
+  if (idx === -1) return;
+  pushUndo();
+  const ev = events[idx];
+  const startDate = targetDate < ev.date ? targetDate : ev.date;
+  const endDate   = targetDate < ev.date ? ev.date   : targetDate;
+  events[idx] = { ...ev, date: startDate, endDate: startDate === endDate ? null : endDate };
+  await saveEvents();
+  renderCalendar();
+  syncHolidays();
+}
+
+async function rescheduleEvent(eventId, targetDate) {
+  const idx = events.findIndex(e => e.id === eventId);
+  if (idx === -1) return;
+  pushUndo();
+  const ev = events[idx];
+  const dayDiff = getDayDiff(ev.date, targetDate);
+  if (dayDiff === 0) return;
+  events[idx] = {
+    ...ev,
+    date: shiftDate(ev.date, dayDiff),
+    endDate: ev.endDate ? shiftDate(ev.endDate, dayDiff) : null
+  };
+  await saveEvents();
+  if (googleConnected && events[idx].googleId) {
+    await updateGoogleEvent(events[idx].googleId, events[idx]);
+  }
+  renderCalendar();
+  syncHolidays();
 }
 
 // ── ICS Import / Export ───────────────────────────────────────────────────────
@@ -2310,6 +2614,15 @@ window.addEventListener('DOMContentLoaded', () => {
     syncHolidays();
     updateTodayBtn();
   });
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.key === 'f') { e.preventDefault(); openSearch(); return; }
+    const tag = document.activeElement?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    if (e.ctrlKey && !e.shiftKey && e.key === 'z') { e.preventDefault(); undo(); }
+    if (e.ctrlKey && e.shiftKey && e.key === 'Z') { e.preventDefault(); redo(); }
+    if (e.key === 'Escape') document.getElementById('search-overlay')?.remove();
+  });
+
   loadTheme();
   initGoogleCalendar();
   initOutlookCalendar();
@@ -2805,7 +3118,7 @@ async function showContextMenu(x, y) {
 
   // ── About & Close (always visible) ───────────────────────────────────────
   menu.appendChild(makeItem(
-    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.2</span>',
+    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.3</span>',
     () => closeContextMenu()
   ));
   menu.appendChild(makeItem(

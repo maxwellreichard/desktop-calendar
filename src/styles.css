@@ -539,6 +539,10 @@ body {
 
 
 
+.event-pill.draggable { cursor: pointer; }
+.day-cell.drag-over { background: var(--accent-light) !important; border-color: var(--accent-border) !important; }
+body.dragging-event { cursor: grabbing !important; user-select: none; }
+
 /* View container */
 .view-container {
   position: relative;
@@ -1153,6 +1157,99 @@ body {
 .mini-cal-cell.other-month {
   color: var(--text-tertiary);
   opacity: 0.4;
+}
+
+/* Search overlay */
+.search-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 80px;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.search-box {
+  background: var(--bg-widget);
+  border: 1px solid var(--border-widget);
+  border-radius: 8px;
+  padding: 10px;
+  width: 340px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+}
+
+.search-input {
+  width: 100%;
+  background: var(--bg-cell);
+  border: 1px solid var(--border-cell);
+  border-radius: 5px;
+  padding: 6px 8px;
+  font-size: 12px;
+  color: var(--text-primary);
+  outline: none;
+  box-sizing: border-box;
+}
+
+.search-results {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.search-result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 11px;
+  color: var(--text-primary);
+}
+
+.search-result:hover { background: var(--bg-cell-hover); }
+
+.search-result-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.search-result-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-result-date {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.search-result-tag {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  background: var(--bg-cell);
+  border: 1px solid var(--border-cell);
+  border-radius: 3px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.search-empty {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-align: center;
+  padding: 10px 0;
 }
 
 /* Modal - kept for any future use but hidden by default */
