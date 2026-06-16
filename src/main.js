@@ -243,7 +243,8 @@ function getEventsForDate(y, m, d) {
     return false;
   });
   const recurring = monthRecurringEvents.filter(e => e.date === key);
-  const google = googleEvents.filter(e => e.date === key);
+  const localGoogleIds = new Set(events.map(e => e.googleId).filter(Boolean));
+  const google = googleEvents.filter(e => e.date === key && !localGoogleIds.has(e.googleId));
   const outlook = outlookEvents.filter(e => {
     if (e.date === key) return true;
     if (e.endDate && e.endDate >= key && e.date < key) return true;
@@ -1148,7 +1149,7 @@ function openInlineEventForm(key, container) {
     events.push(newEvent);
     await saveEvents();
 
-    if (googleConnected && !newEvent.recurrence) {
+    if (googleConnected) {
       const googleResult = await createGoogleEvent(newEvent);
       if (googleResult) {
         newEvent.googleId = googleResult.id;
@@ -1479,6 +1480,40 @@ async function getValidAccessToken() {
   return await refreshAccessToken();
 }
 
+function buildRRule(recurrence) {
+  if (!recurrence) return null;
+  const { frequency, interval = 1, endType, endDate, endCount } = recurrence;
+  const freqMap = { daily: 'DAILY', weekly: 'WEEKLY', monthly: 'MONTHLY', yearly: 'YEARLY', custom: 'DAILY' };
+  let rule = `RRULE:FREQ=${freqMap[frequency] || 'DAILY'}`;
+  if (interval > 1) rule += `;INTERVAL=${interval}`;
+  if (endType === 'date' && endDate) rule += `;UNTIL=${endDate.replace(/-/g, '')}T000000Z`;
+  if (endType === 'count' && endCount) rule += `;COUNT=${endCount}`;
+  return rule;
+}
+
+function buildGoogleEventBody(event, tz) {
+  const endDate = event.endDate || event.date;
+  const exclusiveEndDate = addDaysToDate(endDate, 1);
+  const body = {
+    summary: event.title,
+    description: event.notes || '',
+    start: event.time
+      ? { dateTime: `${event.date}T${event.time}:00`, timeZone: tz }
+      : { date: event.date },
+    end: event.time
+      ? { dateTime: `${endDate}T${event.time}:00`, timeZone: tz }
+      : { date: exclusiveEndDate },
+  };
+  if (event.color) {
+    body.extendedProperties = { private: { desktopCalendarColor: event.color } };
+  }
+  if (event.recurrence) {
+    const rrule = buildRRule(event.recurrence);
+    if (rrule) body.recurrence = [rrule];
+  }
+  return body;
+}
+
 async function fetchGoogleEvents(year, month) {
   const token = await getValidAccessToken();
   if (!token) return [];
@@ -1498,7 +1533,8 @@ async function fetchGoogleEvents(year, month) {
     type: 'google',
     source: 'google',
     notes: item.description || '',
-    googleId: item.id
+    googleId: item.id,
+    color: item.extendedProperties?.private?.desktopCalendarColor || null
   }));
 }
 
@@ -1506,20 +1542,10 @@ async function createGoogleEvent(event) {
   const token = await getValidAccessToken();
   if (!token) return null;
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const body = {
-    summary: event.title,
-    description: event.notes || '',
-    start: event.time
-      ? { dateTime: `${event.date}T${event.time}:00`, timeZone: tz }
-      : { date: event.date },
-    end: event.time
-      ? { dateTime: `${event.date}T${event.time}:00`, timeZone: tz }
-      : { date: event.date }
-  };
   const response = await fetch(`${CALENDAR_BASE}/calendars/primary/events`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(buildGoogleEventBody(event, tz))
   });
   return response.ok ? await response.json() : null;
 }
@@ -1528,22 +1554,27 @@ async function updateGoogleEvent(googleId, event) {
   const token = await getValidAccessToken();
   if (!token) return null;
   const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-  const body = {
-    summary: event.title,
-    description: event.notes || '',
-    start: event.time
-      ? { dateTime: `${event.date}T${event.time}:00`, timeZone: tz }
-      : { date: event.date },
-    end: event.time
-      ? { dateTime: `${event.date}T${event.time}:00`, timeZone: tz }
-      : { date: event.date }
-  };
   const response = await fetch(`${CALENDAR_BASE}/calendars/primary/events/${googleId}`, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(buildGoogleEventBody(event, tz))
   });
   return response.ok ? await response.json() : null;
+}
+
+async function syncLocalToGoogle() {
+  const unsynced = events.filter(ev => !ev.googleId && ev.type !== 'holiday');
+  for (const ev of unsynced) {
+    try {
+      const result = await createGoogleEvent(ev);
+      if (result) {
+        ev.googleId = result.id;
+      }
+    } catch (e) {
+      console.error('Failed to sync event to Google:', ev.title, e);
+    }
+  }
+  if (unsynced.length) await saveEvents();
 }
 
 async function deleteGoogleEvent(googleId) {
@@ -1585,6 +1616,7 @@ async function initGoogleCalendar() {
     await fetchGoogleUserInfo();
     await syncGoogleEvents();
     startGoogleSyncTimer();
+    syncLocalToGoogle().catch(e => console.error('syncLocalToGoogle error:', e));
   }
 }
 
@@ -1959,6 +1991,9 @@ async function extendEventToDate(eventId, targetDate) {
   const endDate   = targetDate < ev.date ? ev.date   : targetDate;
   events[idx] = { ...ev, date: startDate, endDate: startDate === endDate ? null : endDate };
   await saveEvents();
+  if (googleConnected && events[idx].googleId) {
+    await updateGoogleEvent(events[idx].googleId, events[idx]);
+  }
   renderCalendar();
   syncHolidays();
 }
@@ -2999,6 +3034,7 @@ async function showContextMenu(x, y) {
           await fetchGoogleUserInfo();
           await syncGoogleEvents();
           startGoogleSyncTimer();
+          syncLocalToGoogle().catch(e => console.error('syncLocalToGoogle error:', e));
         } catch (e) { console.error('Google auth error:', e); }
         closeContextMenu();
       }));
@@ -3118,7 +3154,7 @@ async function showContextMenu(x, y) {
 
   // ── About & Close (always visible) ───────────────────────────────────────
   menu.appendChild(makeItem(
-    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.3</span>',
+    '<span>About</span><span style="font-size:10px;color:var(--text-tertiary)">v0.7.4</span>',
     () => closeContextMenu()
   ));
   menu.appendChild(makeItem(

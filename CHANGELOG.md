@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [0.7.4] - 2026-06-16
+
+### Added
+- **Google Calendar full sync** — all local events (including recurring) are pushed to Google on connect and startup; colors stored in `extendedProperties.private.desktopCalendarColor` and read back on any device
+- **Cross-device color sync** — custom event colors transfer automatically via Google Calendar's extended properties; no data lost between devices
+- **Expanded holidays** — added Mother's Day, Father's Day, Valentine's Day, Easter Sunday, Halloween, Christmas Eve, New Year's Eve, St. Patrick's Day, Groundhog Day, Earth Day, Cinco de Mayo, Flag Day, and Patriot Day for US; similar observances added for CA, UK, and AU
+
+### Fixed
+- Google Calendar all-day event end dates now sent as exclusive (RFC 5545 compliant), fixing events appearing one day short
+- Shift+drag extend to multi-day now syncs correctly to Google Calendar
+- Duplicate events (local + Google synced) now deduplicated in all views
+- `syncLocalToGoogle` runs in background after `syncGoogleEvents` so Google events appear immediately on startup
+
+---
+
 ## [0.7.3] - 2026-06-16
 
 ### Added

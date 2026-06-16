@@ -734,7 +734,7 @@ dependencies = [
 
 [[package]]
 name = "desktop-calendar"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "serde_json",
  "tauri",
